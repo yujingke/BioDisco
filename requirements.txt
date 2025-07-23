@@ -1,0 +1,4 @@
+# Core dependencies
+langroid>=0.58.2
+transformers>=4.53.2
+neo4j>=5.28.1
