@@ -11,30 +11,35 @@ import random
 from datetime import datetime, timedelta
 from pathlib import Path
 sys.path.insert(0, r"D:\DFKI\SciAgentsDiscovery-openai\SciAgentsDiscovery-main")
-from ScienceDiscovery.log_utils import write_agent_log
-from ScienceDiscovery.llm_config import (
+from utils.log_utils import write_agent_log
+from utils.llm_config import (
     gpt4turbo_mini_config,
     gpt4turbo_mini_config_graph,
     gpt4o_mini_config_graph
 )
-from ScienceDiscovery.neo4j_query import Neo4jGraph, build_readable_kg_context, DOMAIN_CONFIG,FilterKeywordsAgent,clean_and_split_keywords,embed_map_keywords
-from ScienceDiscovery.pubmed_query import (
+from utils.neo4j_query import Neo4jGraph, build_readable_kg_context, DOMAIN_CONFIG,FilterKeywordsAgent,clean_and_split_keywords,embed_map_keywords
+from utils.pubmed_query import (
     KeywordQueryAgent, 
     HypothesisQueryAgent, 
     adaptive_pubmed_search
 )
-from libraries import HypothesisLibrary
+from utils.libraries import HypothesisLibrary
 
 hypo_lib = HypothesisLibrary()
 
 
 all_kg_nodes_set: set = set()
 all_kg_edges_set: set = set()
-# Initialize Neo4j connection
+
+NEO4J_URI = os.getenv("NEO4J_URI")
+NEO4J_USER = os.getenv("NEO4J_USER")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
+
+
 neo4j_graph = Neo4jGraph(
-    uri="bolt://localhost:7687",
-    user="neo4j",
-    password="1234567890"
+    uri=NEO4J_URI,
+    user=NEO4J_USER,
+    password=NEO4J_PASSWORD
 )
 
 # Parse hypotheses and evidence from raw output
@@ -271,7 +276,7 @@ def call_neo4j_subgraph_core(
     return kg_context
 
 # Switch for disabling KG calls
-DISABLE_KG = True
+DISABLE_KG = False
 _original_call_neo4j = call_neo4j_subgraph_core
 def call_neo4j_subgraph(*args, **kwargs) -> str:
     if DISABLE_KG:
@@ -312,7 +317,7 @@ def call_pubmed_search_core(
     }
 
 # 2. 切换开关函数
-DISABLE_PUBMED = True
+DISABLE_PUBMED = False
 
 def call_pubmed_search(*args, **kwargs):
     if DISABLE_PUBMED:
@@ -395,15 +400,23 @@ class KeywordExtractorAgent(ChatAgent):
                     break
         return unique
 
-# KGAgent: get KG context for hypothesis
+class DiseaseExplorerAgent(ChatAgent):
+    def step(self, background: str, domain: str,
+             direct_edge_limit=30, node_limit=30, **kwargs) -> str:
+        kws = KeywordExtractorAgent().extract(background)
+        query_input = kws if len(kws) > 1 else (kws[0] if kws else background.split()[0])
+        return call_neo4j_subgraph(
+            background=background,
+            keywords=query_input,
+            domain=domain,
+            direct_edge_limit=direct_edge_limit,
+            node_limit=node_limit
+        )
+
 class KGAgent(ChatAgent):
-    def step(
-        self,
-        hypothesis: str,
-        domain: str,
-        depth_override: Optional[int] = None,
-        rels_override: Optional[List[str]] = None
-    ) -> str:
+    def step(self, hypothesis: str, domain: str,
+             depth_override=None, rels_override=None,
+             direct_edge_limit=30, node_limit=30, **kwargs) -> str:
         kws = KeywordExtractorAgent().extract(hypothesis)
         return call_neo4j_subgraph(
             background=hypothesis,
@@ -411,22 +424,10 @@ class KGAgent(ChatAgent):
             important_rel_types=rels_override,
             domain=domain,
             max_depth_override=depth_override,
-            direct_edge_limit=30,
-            node_limit=30
+            direct_edge_limit=direct_edge_limit,
+            node_limit=node_limit
         )
 
-# DiseaseExplorerAgent: get KG context for background
-class DiseaseExplorerAgent(ChatAgent):
-    def step(self, background: str, domain: str) -> str:
-        kws = KeywordExtractorAgent().extract(background)
-        query_input = kws if len(kws) > 1 else (kws[0] if kws else background.split()[0])
-        return call_neo4j_subgraph(
-            background=background,
-            keywords=query_input,
-            domain=domain,
-            direct_edge_limit=30,
-            node_limit=30
-        )
  # PlannerAgent: generate stepwise research workflow
 class PlannerAgent(ChatAgent):
     def __init__(self):
@@ -502,21 +503,26 @@ class ScientistAgent(ChatAgent):
 
 # PubmedAgent: search PubMed for relevant articles
 class PubmedAgent(ChatAgent):
-    def __init__(self):
+    def __init__(self, min_results=1, max_results=4):
         cfg = ChatAgentConfig(
             llm=ensure_specific_llm_config(clean_llm_config(gpt4o_mini_config_graph)),
             system_message="You are a PubMed search assistant."
         )
         cfg.name = "PubmedAgent"
+        self.min_results = min_results
+        self.max_results = max_results
         super().__init__(cfg)
 
-    def step(self, keywords: List[str], hypothesis: Optional[str] = None, feedback: Optional[str] = None) -> str:
+    def step(self, keywords: List[str], hypothesis: Optional[str] = None, feedback: Optional[str] = None,
+             min_results=None, max_results=None, **kwargs) -> str:
+        min_results = min_results if min_results is not None else self.min_results
+        max_results = max_results if max_results is not None else self.max_results
         res = call_pubmed_search(
             keywords=keywords,
             hypothesis=hypothesis,
             feedback=feedback,
-            min_results=1,
-            max_results=4
+            min_results=min_results,
+            max_results=max_results
         )
         articles = res["articles"]
         if not articles:
@@ -563,7 +569,7 @@ class CriticAgent(ChatAgent):
 
 # RevisionAgent: suggest evidence source and KG settings for low metrics
 class RevisionAgent(ChatAgent):
-    def __init__(self):
+    def __init__(self, pubmed_min_results=2, pubmed_max_results=5):
         system_message = (
             "RevisionAgent:\n"
             "Task: You receive:\n"
@@ -590,6 +596,8 @@ class RevisionAgent(ChatAgent):
             system_message=system_message
         )
         cfg.name = "RevisionAgent"
+        self.pubmed_min_results = pubmed_min_results
+        self.pubmed_max_results = pubmed_max_results
         super().__init__(cfg)
 
     def simple_analysis(self, metric_name: str, score: int, rationale: str, hypo: str) -> str:
@@ -608,7 +616,9 @@ class RevisionAgent(ChatAgent):
         critic_feedback: str,
         hypothesis: str,
         domain: str,
-        background: str
+        background: str,
+        direct_edge_limit: int = 30,
+        node_limit: int = 30
     ) -> Tuple[
         List[str],
         List[Tuple[str, str]],
@@ -675,11 +685,12 @@ class RevisionAgent(ChatAgent):
         if "neo4j" in actions:
             kg_dyn = call_neo4j_subgraph(
                 new_background,
-                keywords            = kws or [hypothesis],
-                domain              = domain,
-                important_rel_types = rels_override,
-                max_depth_override  = depth_override,
-                direct_edge_limit   = 30
+                keywords=kws or [hypothesis],
+                domain=domain,
+                important_rel_types=rels_override,
+                max_depth_override=depth_override,
+                direct_edge_limit=direct_edge_limit,
+                node_limit=node_limit
             )
             write_agent_log(
                 "Re_KGagent",
@@ -698,8 +709,8 @@ class RevisionAgent(ChatAgent):
                 keywords=kws,
                 hypothesis=hypothesis,
                 feedback="\n".join(analysis_texts),
-                min_results=2,
-                max_results=5,
+                min_results=self.pubmed_min_results,
+                max_results=self.pubmed_max_results,
                 background=new_background,
             )
             write_agent_log(
@@ -783,44 +794,52 @@ def extract_overall_score(feedback: str) -> float:
     return float(m.group(1)) if m else 0.0
 
 # Full pipeline: hypothesis generation, evaluation, refinement
-def run_full_pipeline(background: str):
-    import os, json, re
-    from datetime import datetime
-    from typing import List, Dict, Tuple
-
-    RECORD_DIR = r"D:\DFKI\SciAgentsDiscovery-openai\run_records"
+def run_full_pipeline(
+    background: str,
+    n_iterations: int = 1,
+    max_lit_per_hypo: int = 8,
+    direct_edge_limit: int = 30,
+    node_limit: int = 30,
+    pubmed_min_results: int = 1,
+    pubmed_max_results: int = 4,
+    record_dir: str = r"D:\DFKI\SciAgentsDiscovery-openai\run_records"
+):
+    import os, json
+    RECORD_DIR = record_dir
     os.makedirs(RECORD_DIR, exist_ok=True)
-    max_rounds =3
+    max_rounds = n_iterations
+    MAX_LIT_PER_HYPO = max_lit_per_hypo
 
     initial_path = os.path.join(RECORD_DIR, "Initial_Hypothesis.jsonl")
-    round_paths  = {
+    round_paths = {
         rnd: os.path.join(RECORD_DIR, f"Round{rnd}.jsonl")
         for rnd in range(1, max_rounds+1)
     }
 
-    logs: List[dict] = []
-    hypo_scores: Dict[str, float] = {}
-    hypo_feedbacks: Dict[str, str] = {}
-    all_hypotheses_info = []
-    MAX_LIT_PER_HYPO = 8
+    logs, hypo_scores, hypo_feedbacks, all_hypotheses_info = [], {}, {}, []
     hypothesis_lit_dict = {}
     bg_text = background
 
-    kg_agent     = KGAgent()
-    pubmed_agent = PubmedAgent()
-    critic       = CriticAgent()
-    revision     = RevisionAgent()
+    kg_agent = KGAgent()
+    pubmed_agent = PubmedAgent(min_results=pubmed_min_results, max_results=pubmed_max_results)
+    critic = CriticAgent()
+    revision = RevisionAgent(pubmed_min_results=pubmed_min_results, pubmed_max_results=pubmed_max_results)
     refine_agent = RefineAgent()
 
     domain = DomainSelectorAgent().step(background)
     write_agent_log("DomainSelectorAgent", background, domain)
 
-    kg_context = DiseaseExplorerAgent().step(background, domain)
+    kg_context = DiseaseExplorerAgent().step(
+        background, domain,
+        direct_edge_limit=direct_edge_limit,
+        node_limit=node_limit
+    )
+
     write_agent_log("KGAgent", {"background": background, "domain": domain}, kg_context)
-    
+
     sci_raw = ScientistAgent().step(background, kg_context)
     write_agent_log("ScientistAgent", {"background": background, "kg_context": kg_context}, sci_raw)
-    
+
     initial_hypos = [h.strip() for h in sci_raw.split("\n") if h.strip()]
     initial_evids = [""] * len(initial_hypos)
 
@@ -837,16 +856,22 @@ def run_full_pipeline(background: str):
             }, ensure_ascii=False) + "\n")
 
     all_initial_ids = []
-    initial_evidence_dict = {}
     for idx, (hypo, ev) in enumerate(zip(initial_hypos, initial_evids)):
         h_id = idx
         all_initial_ids.append(h_id)
         ev_full = ev if ev.startswith("EVIDENCE:") else ev
 
-        pub_json = pubmed_agent.step(hypo, domain, "")
+        pub_json = pubmed_agent.step(
+            [hypo],
+            hypothesis=hypo,
+            feedback="",
+            min_results=pubmed_min_results,
+            max_results=pubmed_max_results
+        )
+
         write_agent_log("PubmedAgent", {"hypothesis": hypo, "domain": domain}, pub_json)
-        
-        pubmed_infos = extract_pubmed_info(pub_json, max_n=MAX_LIT_PER_HYPO) if 'extract_pubmed_info' in globals() else []
+
+        pubmed_infos = extract_pubmed_info(pub_json, max_n=MAX_LIT_PER_HYPO)
         hypothesis_lit_dict[h_id] = pubmed_infos
 
         lit_txt = "\n".join(
@@ -855,36 +880,40 @@ def run_full_pipeline(background: str):
         )
         fb = critic.step(bg_text, lit_txt, hypo)
         write_agent_log("CriticAgent", {"background": bg_text, "literature": lit_txt, "hypothesis": hypo}, fb)
-        
+
         score = extract_overall_score(fb)
         hypo_feedbacks[h_id] = fb
-        hypo_scores[h_id]    = score
+        hypo_scores[h_id] = score
 
         all_hypotheses_info.append({
             "from_hypo": idx,
             "type": "Scientist",
             "hypothesis": hypo,
-            "evidence":   ev_full,
-            "score":      score
+            "evidence": ev_full,
+            "score": score
         })
 
     for idx, h_id in enumerate(all_initial_ids):
         curr_id = h_id
         curr_txt = initial_hypos[idx]
         prior_evidence = ""
-        for rnd in range(1, max_rounds+1):
+        for rnd in range(1, max_rounds + 1):
             fb = hypo_feedbacks[curr_id]
-            actions, info, metrics_texts, *_ = revision.step(fb, curr_txt, domain, background)
-            write_agent_log("RevisionAgent", {"feedback": fb, "hypothesis": curr_txt, "domain": domain, "background": background}, 
+            actions, info, metrics_texts, *_ = revision.step(
+                fb, curr_txt, domain, background,
+                direct_edge_limit=direct_edge_limit,
+                node_limit=node_limit,
+            )
+            write_agent_log("RevisionAgent", {"feedback": fb, "hypothesis": curr_txt, "domain": domain, "background": background},
                 {"actions": actions, "info": info, "metrics_texts": metrics_texts})
-            
+
             curr_lits = hypothesis_lit_dict.get(curr_id, []).copy()
             for lbl, cnt in info:
-                if lbl == "pubmed" and 'extract_pubmed_info' in globals():
+                if lbl == "pubmed":
                     new_infos = extract_pubmed_info(cnt, max_n=MAX_LIT_PER_HYPO)
                     existing = {x.get("pmid") for x in curr_lits}
                     for x in new_infos:
-                        if x.get("pmid") not in existing and len(curr_lits)<MAX_LIT_PER_HYPO:
+                        if x.get("pmid") not in existing and len(curr_lits) < MAX_LIT_PER_HYPO:
                             curr_lits.append(x)
             ref_raw = refine_agent.step(curr_txt, info, metrics_texts, prior_evidence)
             write_agent_log("RefineAgent", {"hypothesis": curr_txt, "info": info, "metrics_texts": metrics_texts}, ref_raw)
@@ -900,13 +929,13 @@ def run_full_pipeline(background: str):
             write_agent_log("CriticAgent", {"background": bg_text, "literature": lit_txt2, "hypothesis": ref_txt}, fb2)
             score2 = extract_overall_score(fb2)
             hypo_feedbacks[curr_id] = fb2
-            hypo_scores[curr_id]    = score2
+            hypo_scores[curr_id] = score2
             all_hypotheses_info.append({
                 "from_hypo": idx,
                 "type": "Refined",
                 "hypothesis": ref_txt,
-                "evidence":   "",
-                "score":      score2
+                "evidence": "",
+                "score": score2
             })
             with open(round_paths[rnd], "a", encoding="utf-8") as outf:
                 bg_clean = _strip_header(background)

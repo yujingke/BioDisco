@@ -9,7 +9,7 @@ import re
 from langroid.agent.chat_agent import ChatAgent, ChatAgentConfig
 from langroid.language_models.base import LLMConfig
 from langroid.language_models.openai_gpt import OpenAIGPTConfig
-from llm_config import gpt4o_mini_config_graph
+from utils.llm_config import gpt4o_mini_config_graph
 
 
 def extract_json_from_response(text):

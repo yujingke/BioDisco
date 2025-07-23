@@ -13,7 +13,7 @@ from langroid.language_models.base import LLMConfig
 from langroid.language_models.openai_gpt import OpenAIGPTConfig
 import openai
 
-from llm_config import (
+from utils.llm_config import (
     gpt4turbo_mini_config,
     gpt4turbo_mini_config_graph,
     gpt4o_mini_config_graph

@@ -1,55 +1,41 @@
 from __future__ import annotations
-import os
-import sys
-sys.path.insert(0, r"D:\DFKI\SciAgentsDiscovery-openai\SciAgentsDiscovery-main")
-import re
+import argparse
 import json
-from langroid.agent.chat_agent import ChatAgent, ChatAgentConfig
 from datetime import datetime
 from typing import List, Sequence
 
-# Import main components and agent classes
-from ScienceDiscovery.log_utils import write_agent_log
-from ScienceDiscovery.agents_evidence import (
-    KeywordExtractorAgent,
+from dotenv import load_dotenv
+load_dotenv()
+
+from utils.log_utils import write_agent_log
+from agents_evidence import (
     ChatAgent, ChatAgentConfig,
-    gpt4turbo_mini_config,
-    ensure_specific_llm_config,
-    clean_llm_config,
-    run_full_pipeline,
-    DomainSelectorAgent,
-    DiseaseExplorerAgent,
-    ScientistAgent,
-    call_pubmed_search,
-    DISABLE_PUBMED
+    gpt4turbo_mini_config, ensure_specific_llm_config, clean_llm_config,
+    run_full_pipeline,                        # <-- 你已有的函数
+    DomainSelectorAgent, DiseaseExplorerAgent, ScientistAgent,
+    call_pubmed_search
 )
 
-
-
-# LLM agent for summarizing PubMed articles into short background
+# ----------------------------- LLM agent -------------------------------- #
 class BackgroundSummariserAgent(ChatAgent):
     def __init__(self):
         cfg = ChatAgentConfig(
             llm=ensure_specific_llm_config(clean_llm_config(gpt4turbo_mini_config)),
             system_message=(
                 "BackgroundSummariserAgent:\n"
-                "Task: You are given a list of PubMed article metadata blocks about a specific disease and a set of core genes or biological entities.\n"
-                "Write a concise, well-structured background paragraph (less than 150 words) that summarizes key mechanistic insights and highlights the relationships between the core genes and disease-relevant biological processes (such as EMT, inflammation, senescence, signaling, etc.).\n"
+                "Task: Given PubMed article metadata about a disease and core genes, write a concise "
+                "background paragraph (<150 words) highlighting mechanistic links.\n"
                 "Requirements:\n"
-                "- Clearly explain how the core genes are linked to disease mechanisms, pathways, or phenotypes based on the literature.\n"
-                "- Emphasize causal or regulatory connections when possible, rather than just listing associations.\n"
-                "- Do not copy sentences verbatim from abstracts. Always synthesize and paraphrase information in your own words.\n"
-                "- Use clear, logical, and scientifically precise language.\n"
-                "- Avoid including superfluous or generic information; focus on mechanistic insights most relevant to the disease and core genes.\n"
-                "- Stay within 150 words total."
-                "If there is little or no literature evidence available, be extremely cautious: **do not fabricate mechanistic details or connections**. Instead, limit the background to well-known and basic disease or gene facts that are widely accepted, or explicitly state that no strong mechanistic insights can be summarized due to insufficient evidence.\n"
-                "When in doubt, err on the side of brevity and avoid making unsupported or speculative claims.\n"
+                "- Explain how core genes connect to disease mechanisms/pathways/phenotypes.\n"
+                "- Prefer causal/regulatory relations over loose associations.\n"
+                "- No verbatim copy; paraphrase concisely and precisely.\n"
+                "- Avoid generic fluff; focus on mechanistic insights.\n"
+                "- If evidence is scarce, do NOT fabricate; state limitation briefly.\n"
             )
         )
         cfg.name = "BackgroundSummariserAgent"
         super().__init__(cfg)
 
-    # Summarize PubMed articles for given disease and genes
     def summarise(self, disease: str, genes: Sequence[str], article_blocks: List[str]) -> str:
         joined = "\n".join(article_blocks[:20])
         prompt = (
@@ -64,16 +50,16 @@ class BackgroundSummariserAgent(ChatAgent):
         write_agent_log(
             "BackgroundSummariserAgent",
             {"disease": disease, "genes": genes, "articles": article_blocks},
-            background
+            background,
         )
         return background
 
 
-# Build background summary for a disease and gene list (main pipeline)
+# -------------------------- Helper functions ---------------------------- #
 def build_background_summary(
     disease: str,
     core_genes: Sequence[str],
-    related_articles: list = None,   
+    related_articles: list | None = None,
     start_year: int = 2019,
     retmax: int = 10,
 ) -> str:
@@ -81,72 +67,114 @@ def build_background_summary(
         related_articles = []
     blocks = [json.dumps(a, ensure_ascii=False) for a in related_articles]
     background = BackgroundSummariserAgent().summarise(disease, core_genes, blocks)
-    timestamp = datetime.now().strftime("%Y-%m-%d")
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d")
     header = (
         f"### Auto-generated background for {disease} (genes: {', '.join(core_genes)}), "
-        f"PubMed cut-off ≥{start_year} (generated {timestamp} UTC)\n\n"
+        f"PubMed cut-off ≥{start_year} (generated {timestamp} UTC)\n\n"
     )
     return header + background
 
 
-# # Ablation - no iteration
-# if __name__ == "__main__":
-#     input_jsonl = r"D:\DFKI\SciAgentsDiscovery-openai\test.jsonl"
+def run_background_only(
+    disease: str,
+    core_genes: Sequence[str],
+    start_year: int = 2019,
+    min_results: int = 3,
+    max_results: int = 10,
+):
+    """No refinement loop; just BG + initial hypotheses."""
+    articles_result = call_pubmed_search(
+        keywords=[disease] + list(core_genes),
+        min_results=min_results,
+        max_results=max_results,
+    )
+    articles = articles_result["articles"]
 
-#     output_jsonl = r"D:\DFKI\SciAgentsDiscovery-openai\SciAgentsDiscovery-main\ScienceDiscovery\test_1.jsonl"
+    background = build_background_summary(
+        disease=disease,
+        core_genes=core_genes,
+        related_articles=articles,
+        start_year=start_year,
+        retmax=max_results,
+    )
 
-#     with open(input_jsonl, "r", encoding="utf-8") as fin, \
-#          open(output_jsonl, "w", encoding="utf-8") as fout:
+    domain = DomainSelectorAgent().step(background)
+    kg_context = DiseaseExplorerAgent().step(background, domain)
 
-#         for idx, line in enumerate(fin, 1):
-#             try:
-#                 item = json.loads(line)
-#                 disease = item.get("disease", "")
-#                 core_genes = item.get("core_genes", [])
+    sci_raw = ScientistAgent().step(background, kg_context)
+    hypotheses = [h.strip() for h in sci_raw.split("\n") if h.strip()]
 
-#                 articles_result = call_pubmed_search(
-#                     keywords=[disease] + list(core_genes),
-#                     min_results=3,
-#                     max_results=10
-#                 )
-#                 articles = articles_result["articles"]
-
-#                 background = build_background_summary(
-#                     disease=disease,
-#                     core_genes=core_genes,
-#                     related_articles=articles,   
-#                     start_year=2019,
-#                     retmax=10,
-#                 )
-
-#                 # KG context
-#                 domain_agent = DomainSelectorAgent()
-#                 domain = domain_agent.step(background)
-#                 kg_context = DiseaseExplorerAgent().step(background, domain)
-                
-#                 # initial hypothesis
-#                 sci_agent = ScientistAgent()
-#                 sci_raw = sci_agent.step(background, kg_context)
-#                 hypotheses = [h.strip() for h in sci_raw.split("\n") if h.strip()]
-
-#                 out_item = {
-#                     "disease": disease,
-#                     "core_genes": core_genes,
-#                     "hypotheses": hypotheses
-#                 }
-#                 fout.write(json.dumps(out_item, ensure_ascii=False) + "\n")
-#                 print(f"===> Done: {disease}, {len(hypotheses)} initial hypotheses written.")
-#             except Exception as e:
-#                 print(f"[ERROR] {e}")
-#                 continue
+    return {
+        "disease": disease,
+        "core_genes": core_genes,
+        "background": background,
+        "articles": articles,
+        "hypotheses": hypotheses,
+    }
 
 
+def run_biodisco_full(
+    disease: str,
+    core_genes: Sequence[str],
+    start_year: int = 2019,
+    min_results: int = 3,
+    max_results: int = 10,
+    node_limit: int = 50,
+    direct_edge_limit: int = 30,
+    max_paths: int = 0,
+    n_iterations: int = 3,
+    max_articles_per_round: int = 10,
+):
+    """Full pipeline; pass all args to run_full_pipeline."""
+    articles = []
 
-# BioDisco full-pipiline
-if __name__ == "__main__":
-    input_jsonl = r"D:\DFKI\SciAgentsDiscovery-openai\test.jsonl"
+    art_res = call_pubmed_search(
+        keywords=[disease] + list(core_genes),
+        min_results=min_results,
+        max_results=max_results,
+    )
+    articles = art_res["articles"]
 
-    output_jsonl = r"D:\DFKI\SciAgentsDiscovery-openai\SciAgentsDiscovery-main\ScienceDiscovery\test_1.jsonl"
+    background = build_background_summary(
+        disease=disease,
+        core_genes=core_genes,
+        related_articles=articles,
+        start_year=start_year,
+        retmax=max_results
+    )
+
+    # 传递参数到 run_full_pipeline
+    all_hypotheses_info = run_full_pipeline(
+        background,
+        n_iterations=n_iterations,
+        max_lit_per_hypo=max_articles_per_round
+    )
+
+    return {
+        "disease": disease,
+        "core_genes": core_genes,
+        "background": background,
+        "articles": articles,
+        "all_hypotheses": [
+            {
+                "hypothesis": h.get("hypothesis", ""),
+                "score": h.get("score", None),
+                "from_hypo": h.get("from_hypo", None),
+                "type": h.get("type", ""),
+                "evidence": h.get("evidence", ""),
+            }
+            for h in all_hypotheses_info
+        ],
+    }
+
+
+def run_pipeline_on_file(
+    input_jsonl: str,
+    output_jsonl: str,
+    mode: str = "full",
+    **kwargs,
+):
+    runner = run_biodisco_full if mode == "full" else run_background_only
 
     with open(input_jsonl, "r", encoding="utf-8") as fin, \
          open(output_jsonl, "w", encoding="utf-8") as fout:
@@ -156,47 +184,51 @@ if __name__ == "__main__":
                 item = json.loads(line)
                 disease = item.get("disease", "")
                 core_genes = item.get("core_genes", [])
-                # Step 1: Generate background summary
-                articles_result = call_pubmed_search(
-                    keywords=[disease] + list(core_genes),
-                    min_results=3,
-                    max_results=10
-                )
-                articles = articles_result["articles"]
-
-                background = build_background_summary(
-                    disease=disease,
-                    core_genes=core_genes,
-                    related_articles=articles,  
-                    start_year=2019,
-                    retmax=10,
-                )
-                # Step 2: Run full pipeline (KG, literature, revision, refine)
-                all_hypotheses_info = run_full_pipeline(background)
-                # Step 3: Write all hypotheses and scores
-                out_item = {
-                    "disease": disease,
-                    "core_genes": core_genes,
-                    "all_hypotheses": [
-                        {
-                            "hypothesis": h.get("hypothesis", ""),
-                            "score": h.get("score", None),
-                            "from_hypo": h.get("from_hypo", None),
-                            "type": h.get("type", ""),
-                            "evidence": h.get("evidence", "")
-                        }
-                        for h in all_hypotheses_info
-                    ]
-                }
-                fout.write(json.dumps(out_item, ensure_ascii=False) + "\n")
-                print(f"===> Done: {disease}, {len(all_hypotheses_info)} hypotheses written.")
+                result = runner(disease, core_genes, **kwargs)
+                fout.write(json.dumps(result, ensure_ascii=False) + "\n")
+                print(f"[{mode.upper()}] {idx}: {disease} ✓")
             except Exception as e:
-                print(f"[ERROR] {e}")
+                print(f"[ERROR] line {idx}: {e}")
                 continue
 
 
+# ------------------------------- CLI ------------------------------------ #
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="BioDisco pipelines")
+    p.add_argument("--in",  dest="input_jsonl",  default="test.jsonl")
+    p.add_argument("--out", dest="output_jsonl", default="result.jsonl")
+    p.add_argument("--mode", choices=["simple", "full"], default="full")
+
+    # PubMed / BG
+    p.add_argument("--start_year", type=int, default=2019)
+    p.add_argument("--min_results", type=int, default=3)
+    p.add_argument("--max_results", type=int, default=10)
+
+    # run_full_pipeline 常用参数
+    p.add_argument("--node_limit", type=int, default=50)
+    p.add_argument("--direct_edge_limit", type=int, default=30)
+    p.add_argument("--max_paths",      type=int, default=0)
+    p.add_argument("--n_iterations",   type=int, default=3)
+    p.add_argument("--max_articles_per_round", type=int, default=10)
+
+    return p.parse_args()
 
 
+if __name__ == "__main__":
+    args = parse_args()
+    run_pipeline_on_file(
+        input_jsonl=args.input_jsonl,
+        output_jsonl=args.output_jsonl,
+        mode="full" if args.mode == "full" else "simple",
+        start_year=args.start_year,
+        min_results=args.min_results,
+        max_results=args.max_results,
+        node_limit=args.node_limit,
+        direct_edge_limit=args.direct_edge_limit,
+        max_paths=args.max_paths,
+        n_iterations=args.n_iterations,
+        max_articles_per_round=args.max_articles_per_round,
+    )
 
 # Temporal eval gpt3.5
 # import json

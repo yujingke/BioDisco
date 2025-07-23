@@ -1,0 +1,110 @@
+{
+  "disease": "breast cancer",
+  "core_genes": [
+    "BRCA1",
+    "TP53"
+  ],
+  "background": "### Auto-generated background for breast cancer (genes: BRCA1, TP53), PubMed cut-off ≥2019 (generated 2025-07-23 UTC)\n\nBreast cancer is significantly influenced by core genes such as BRCA1 and TP53, which are crucial in tumor suppression and genomic stability. BRCA1 mutations are associated with a heightened risk of breast cancer due to their role in DNA repair processes. Loss of BRCA1 function disrupts homologous recombination, leading to genomic instability and tumorigenesis. TP53, often mutated in breast cancer, regulates the cell cycle and apoptosis; its inactivation allows for unchecked cellular proliferation and survival despite genomic aberrations. Studies indicate that TP53 mutations correlate with poor prognosis and resistance to therapies, underlining its pivotal role in the disease's progression and treatment response. While BRCA1 and TP53 are established players in breast cancer pathogenesis, further research is necessary to unravel the full spectrum of their interactions and implications in therapy resistance and survival outcomes.",
+  "articles": [
+    {
+      "id": "38777539",
+      "title": "Hereditary Breast Cancer: BRCA Mutations and Beyond.",
+      "abstract": "Hereditary breast cancers are manifested by pathogenic and likely pathogenic genetic mutations. Penetrance expresses the breast cancer risk associated with these genetic mutations. Although BRCA1/2 are the most widely known genetic mutations associated with breast cancer, numerous additional genes demonstrate high and moderate penetrance for breast cancer. This review describes current genetic testing, details the specific high and moderate penetrance genes for breast cancer and reviews the current approach to screening for breast cancer in patients with these genetic mutations.",
+      "pub_date": "2024",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/38777539/"
+    },
+    {
+      "id": "38059899",
+      "title": "Pregnancy After Breast Cancer in Young BRCA Carriers: An International Hospital-Based Cohort Study.",
+      "abstract": "Young women with breast cancer who have germline pathogenic variants in BRCA1 or BRCA2 face unique challenges regarding fertility. Previous studies demonstrating the feasibility and safety of pregnancy in breast cancer survivors included limited data regarding BRCA carriers. To investigate cumulative incidence of pregnancy and disease-free survival in young women who are BRCA carriers. International, multicenter, hospital-based, retrospective cohort study conducted at 78 participating centers worldwide. The study included female participants diagnosed with invasive breast cancer at age 40 years or younger between January 2000 and December 2020 carrying germline pathogenic variants in BRCA1 and/or BRCA2. Last delivery was October 7, 2022; last follow-up was February 20, 2023. Pregnancy after breast cancer. Primary end points were cumulative incidence of pregnancy after breast cancer and disease-free survival. Secondary end points were breast cancer-specific survival, overall survival, pregnancy, and fetal and obstetric outcomes. Of 4732 BRCA carriers included, 659 had at least 1 pregnancy after breast cancer and 4073 did not. Median age at diagnosis in the overall cohort was 35 years (IQR, 31-38 years). Cumulative incidence of pregnancy at 10 years was 22% (95% CI, 21%-24%), with a median time from breast cancer diagnosis to conception of 3.5 years (IQR, 2.2-5.3 years). Among the 659 patients who had a pregnancy, 45 (6.9%) and 63 (9.7%) had an induced abortion or a miscarriage, respectively. Of the 517 patients (79.7%) with a completed pregnancy, 406 (91.0%) delivered at term (≥37 weeks) and 54 (10.4%) had twins. Among the 470 infants born with known information on pregnancy complications, 4 (0.9%) had documented congenital anomalies. Median follow-up was 7.8 years (IQR, 4.5-12.6 years). No significant difference in disease-free survival was observed between patients with or without a pregnancy after breast cancer (adjusted hazard ratio, 0.99; 95% CI, 0.81-1.20). Patients who had a pregnancy had significantly better breast cancer-specific survival and overall survival. In this global study, 1 in 5 young BRCA carriers conceived within 10 years after breast cancer diagnosis. Pregnancy following breast cancer in BRCA carriers was not associated with decreased disease-free survival. ClinicalTrials.gov Identifier: NCT03673306.",
+      "pub_date": "2024",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/38059899/"
+    },
+    {
+      "id": "38421676",
+      "title": "MRI Surveillance and Breast Cancer Mortality in Women With BRCA1 and BRCA2 Sequence Variations.",
+      "abstract": "Magnetic resonance imaging (MRI) surveillance is offered to women with a pathogenic variant in the BRCA1 or BRCA2 gene who face a high lifetime risk of breast cancer. Surveillance with MRI is effective in downstaging breast cancers, but the association of MRI surveillance with mortality risk has not been well defined. To compare breast cancer mortality rates in women with a BRCA1 or BRCA2 sequence variation who entered an MRI surveillance program with those who did not. Women with a BRCA1 or BRCA2 sequence variation were identified from 59 participating centers in 11 countries. Participants completed a baseline questionnaire between 1995 and 2015 and a follow-up questionnaire every 2 years to document screening histories, incident cancers, and vital status. Women who had breast cancer, a screening MRI examination, or bilateral mastectomy prior to enrollment were excluded. Participants were followed up from age 30 years (or the date of the baseline questionnaire, whichever was later) until age 75 years, the last follow-up, or death from breast cancer. Data were analyzed from January 1 to July 31, 2023. Entrance into an MRI surveillance program. Cox proportional hazards modeling was used to estimate the hazard ratios (HRs) and 95% CIs for breast cancer mortality associated with MRI surveillance compared with no MRI surveillance using a time-dependent analysis. A total of 2488 women (mean [range] age at study entry 41.2 [30-69] years), with a sequence variation in the BRCA1 (n = 2004) or BRCA2 (n = 484) genes were included in the analysis. Of these participants, 1756 (70.6%) had at least 1 screening MRI examination and 732 women (29.4%) did not. After a mean follow-up of 9.2 years, 344 women (13.8%) developed breast cancer and 35 women (1.4%) died of breast cancer. The age-adjusted HRs for breast cancer mortality associated with entering an MRI surveillance program were 0.20 (95% CI, 0.10-0.43; P < .001) for women with BRCA1 sequence variations and 0.87 (95% CI, 0.10-17.25; P = .93) for women with BRCA2 sequence variations. Results of this cohort study suggest that among women with a BRCA1 sequence variation, MRI surveillance was associated with a significant reduction in breast cancer mortality compared with no MRI surveillance. Further studies of women with BRCA2 sequence variations are needed to ascertain these women obtain the same benefits associated with MRI surveillance.",
+      "pub_date": "2024",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/38421676/"
+    },
+    {
+      "id": "38030749",
+      "title": "Risk-reducing mastectomy and breast cancer mortality in women with a BRCA1 or BRCA2 pathogenic variant: an international analysis.",
+      "abstract": "Risk-reducing mastectomy (RRM) is offered to women with a BRCA1 or BRCA2 pathogenic variant, however, there are limited data on the impact on breast cancer mortality. Participants were identified from a registry of women with BRCA1/2 pathogenic variants. We used a pseudo-randomised trial design and matched one woman with a RRM to one woman without a RRM on year of birth, gene, and country. We estimated the hazard ratio (HR) and 95% confidence intervals (CI) for dying of breast cancer in the follow-up period. There were 1654 women included; 827 assigned to the RRM arm and 827 assigned to the control arm. After a mean follow-up of 6.3 years, there were 20 incident breast cancers (including 15 occult cancers) and two breast cancer deaths in the RRM arm, and 100 incident breast cancers and 7 breast cancer deaths in the control arm (HR = 0.26; 95% CI 0.05-1.35; p = 0.11). The probability of dying of breast cancer within 15 years after RRM was 0.95%. In women with a BRCA1 or BRCA2 pathogenic variant, RRM reduces the risk of breast cancer, and the probability of dying of breast cancer is low.",
+      "pub_date": "2024",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/38030749/"
+    },
+    {
+      "id": "36893711",
+      "title": "OlympiAD extended follow-up for overall survival and safety: Olaparib versus chemotherapy treatment of physician's choice in patients with a germline BRCA mutation and HER2-negative metastatic breast cancer.",
+      "abstract": "In the Phase III OlympiAD study, olaparib significantly prolonged progression-free survival versus chemotherapy treatment of physician's choice (TPC) in patients with germline BRCA-mutated (gBRCAm), human epidermal growth factor receptor 2-negative metastatic breast cancer (mBC). In the final pre-specified analysis (64% maturity), median overall survival (OS) was 19.3 months for olaparib and 17.1 months for TPC (P = 0.513). Post-hoc extended follow-up, 25.7 months longer than previously reported for OS, is reported. Patients with gBRCAm, human epidermal growth factor receptor 2-negative mBC, who had received ≤2 lines of chemotherapy for metastatic disease, were randomised 2:1 to olaparib (300 mg bid) or TPC. During extended follow-up, OS was analysed every 6 months using the stratified log-rank test (overall population) and Cox proportional hazards model (pre-specified subgroups). In the overall population (302 patients; 76.8% maturity), median OS was 19.3 months for olaparib and 17.1 months for TPC (hazard ratio 0.89, 95% confidence interval 0.67-1.18); median follow-up was 18.9 and 15.5 months, respectively. Three-year survival was 27.9% for olaparib versus 21.2% for TPC. With olaparib, 8.8% of patients received study treatment for ≥3 years versus none with TPC. In first-line mBC, median OS was longer for olaparib than TPC (22.6 versus 14.7 months; hazard ratio 0.55, 95% confidence interval 0.33-0.95) and 3-year survival was 40.8% for olaparib versus 12.8% for TPC. No new serious adverse events related to olaparib were observed. OS was consistent with previous analyses from OlympiAD. These findings support the possibility of meaningful long-term survival benefit with olaparib, particularly in first-line mBC.",
+      "pub_date": "2023",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/36893711/"
+    },
+    {
+      "id": "39393354",
+      "title": "Long-term breast cancer response to CDK4/6 inhibition defined by TP53-mediated geroconversion.",
+      "abstract": "Inhibition of CDK4/6 kinases has led to improved outcomes in breast cancer. Nevertheless, only a minority of patients experience long-term disease control. Using a large, clinically annotated cohort of patients with metastatic hormone receptor-positive (HR+) breast cancer, we identify TP53 loss (27.6%) and MDM2 amplification (6.4%) to be associated with lack of long-term disease control. Human breast cancer models reveal that p53 loss does not alter CDK4/6 activity or G1 blockade but instead promotes drug-insensitive p130 phosphorylation by CDK2. The persistence of phospho-p130 prevents DREAM complex assembly, enabling cell-cycle re-entry and tumor progression. Inhibitors of CDK2 can overcome p53 loss, leading to geroconversion and manifestation of senescence phenotypes. Complete inhibition of both CDK4/6 and CDK2 kinases appears to be necessary to facilitate long-term response across genomically diverse HR+ breast cancers.",
+      "pub_date": "2024",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/39393354/"
+    },
+    {
+      "id": "38735837",
+      "title": "A comprehensive overview of metaplastic breast cancer: Features and treatments.",
+      "abstract": "Metaplastic breast cancer is a rare, aggressive, and chemotherapy-resistant subtype of breast cancers, accounting for less than 1% of invasive breast cancers, characterized by adenocarcinoma with spindle cells, squamous epithelium, and/or mesenchymal tissue differentiation. The majority of metaplastic breast cancers exhibit the characteristics of triple-negative breast cancer and have unfavorable prognoses with a lower survival rate. This subtype often displays gene alterations in the PI3K/AKT pathway, Wnt/β-catenin pathway, and cell cycle dysregulation and demonstrates epithelial-mesenchymal transition, immune response changes, TP53 mutation, EGFR amplification, and so on. Currently, the optimal treatment of metaplastic breast cancer remains uncertain. This article provides a comprehensive review on the clinical features, molecular characteristics, invasion and metastasis patterns, and prognosis of metaplastic breast cancer, as well as recent advancements in treatment strategies.",
+      "pub_date": "2024",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/38735837/"
+    },
+    {
+      "id": "38593782",
+      "title": "Genetic interactions reveal distinct biological and therapeutic implications in breast cancer.",
+      "abstract": "Co-occurrence and mutual exclusivity of genomic alterations may reflect the existence of genetic interactions, potentially shaping distinct biological phenotypes and impacting therapeutic response in breast cancer. However, our understanding of them remains limited. Herein, we investigate a large-scale multi-omics cohort (n = 873) and a real-world clinical sequencing cohort (n = 4,405) including several clinical trials with detailed treatment outcomes and perform functional validation in patient-derived organoids, tumor fragments, and in vivo models. Through this comprehensive approach, we construct a network comprising co-alterations and mutually exclusive events and characterize their therapeutic potential and underlying biological basis. Notably, we identify associations between TP53",
+      "pub_date": "2024",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/38593782/"
+    },
+    {
+      "id": "38217005",
+      "title": "Genomic and transcriptomic analysis of breast cancer identifies novel signatures associated with response to neoadjuvant chemotherapy.",
+      "abstract": "Neoadjuvant chemotherapy (NAC) has become a standard treatment strategy for breast cancer (BC). However, owing to the high heterogeneity of these tumors, it is unclear which patient population most likely benefit from NAC. Multi-omics offer an improved approach to uncovering genomic and transcriptomic changes before and after NAC in BC and to identifying molecular features associated with NAC sensitivity. We performed whole-exome and RNA sequencing on 233 samples (including matched pre- and post-treatment tumors) from 50 BC patients with rigorously defined responses to NAC and analyzed changes in the multi-omics landscape. Molecular features associated with NAC response were identified and validated in a larger internal, and two external validation cohorts, as well as in vitro experiments. The most frequently altered genes were TP53, TTN, and MUC16 in both pre- and post-treatment tumors. In comparison with pre-treatment tumors, there was a significant decrease in C > A transversion mutations in post-treatment tumors (P = 0.020). NAC significantly decreased the mutation rate (P = 0.006) of the DNA repair pathway and gene expression levels (FDR = 0.007) in this pathway. NAC also significantly changed the expression level of immune checkpoint genes and the abundance of tumor-infiltrating immune and stroma cells, including B cells, activated dendritic cells, γδT cells, M2 macrophages and endothelial cells. Furthermore, there was a higher rate of C > T substitutions in NAC nonresponsive tumors than responsive ones, especially when the substitution site was flanked by C and G. Importantly, there was a unique amplified region at 8p11.23 (containing ADGRA2 and ADRB3) and a deleted region at 3p13 (harboring FOXP1) in NAC nonresponsive and responsive tumors, respectively. Particularly, the CDKAL1 missense variant P409L (p.Pro409Leu, c.1226C > T) decreased BC cell sensitivity to docetaxel, and ADGRA2 or ADRB3 gene amplifications were associated with worse NAC response and poor prognosis in BC patients. Our study has revealed genomic and transcriptomic landscape changes following NAC in BC, and identified novel biomarkers (CDKAL1",
+      "pub_date": "2024",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/38217005/"
+    },
+    {
+      "id": "39235812",
+      "title": "Circulating Tumor DNA and Survival in Metastatic Breast Cancer: A Systematic Review and Meta-Analysis.",
+      "abstract": "Metastatic breast cancer (MBC) poses a substantial clinical challenge despite advancements in diagnosis and treatment. While tissue biopsies offer a static snapshot of disease, liquid biopsy-through detection of circulating tumor DNA (ctDNA)-provides minimally invasive, real-time insight into tumor biology. To determine the association between ctDNA and survival outcomes in patients with MBC. An electronic search was performed in 5 databases (CINAHL, Cochrane Library, Embase, Medline, and Web of Science) and included all articles published from inception until October 23, 2023. To be included in the meta-analysis, studies had to (1) include women diagnosed with MBC; (2) report baseline plasma ctDNA data; and (3) report overall survival, progression-free survival, or disease-free survival with associated hazards ratios. Titles and abstracts were screened independently by 2 authors. Data were pooled using a random-effects model. This study adhered to the Preferred Reporting Items for Systematic Reviews and Meta-analyses (PRISMA) reporting guideline, and quality was assessed using the Newcastle-Ottawa Scale. The primary study outcome was the association between detection of specific genomic alterations in ctDNA with survival outcomes. Secondary objectives were associations of study methodology with survival. Of 3162 articles reviewed, 37 met the inclusion criteria and reported data from 4264 female patients aged 20 to 94 years. Aggregated analysis revealed a significant association between ctDNA detection and worse survival (hazard ratio, 1.40; 95% CI, 1.22-1.58). Subgroup analysis identified significant associations of TP53 and ESR1 alterations with worse survival (hazard ratios, 1.58 [95% CI, 1.34-1.81] and 1.28 [95% CI, 0.96-1.60], respectively), while PIK3CA alterations were not associated with survival outcomes. Stratifying by detection method, ctDNA detection through next-generation sequencing and digital polymerase chain reaction was associated with worse survival (hazard ratios, 1.48 [95% CI, 1.22-1.74] and 1.28 [95% CI, 1.05-1.50], respectively). In this systematic review and meta-analysis, detection of specific genomic alterations in ctDNA was associated with worse overall, progression-free, and disease-free survival, suggesting its potential as a prognostic biomarker in MBC. These results may help guide the design of future studies to determine the actionability of ctDNA findings.",
+      "pub_date": "2024",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/39235812/"
+    }
+  ],
+  "all_hypotheses": [
+    {
+      "hypothesis": "Co-mutation of BRCA1 and TP53 in breast cancer cells enhances genomic instability and promotes resistance to targeted therapies by disrupting DNA repair and cell cycle regulation.",
+      "score": 18.0,
+      "from_hypo": 0,
+      "type": "Scientist",
+      "evidence": ""
+    },
+    {
+      "hypothesis": "Co-mutation of BRCA1 and TP53 in breast cancer cells synergistically disrupts the BRCA1-BARD1 E3 ligase activity, leading to impaired homologous recombination and enhanced genomic instability, which promotes resistance to targeted therapies by further dysregulating cell cycle checkpoints through MYC and CDK2 interactions.",
+      "score": 19.0,
+      "from_hypo": 0,
+      "type": "Refined",
+      "evidence": ""
+    },
+    {
+      "hypothesis": "Co-mutation of BRCA1 and TP53 in breast cancer cells disrupts BRCA1-BARD1 E3 ligase activity and impairs homologous recombination, leading to genomic instability and resistance to therapies; this interaction is mediated by altered CDK2 phosphorylation patterns, which affects the DREAM complex and cell cycle regulation.",
+      "score": 19.0,
+      "from_hypo": 0,
+      "type": "Refined",
+      "evidence": ""
+    },
+    {
+      "hypothesis": "Co-mutation of BRCA1 and TP53 in breast cancer cells disrupts BRCA1-BARD1 E3 ligase activity and impairs homologous recombination, leading to genomic instability and therapy resistance; this relationship is influenced by altered CDK2 phosphorylation, which reduces DREAM complex functionality and modifies cell cycle regulation in cancer models.",
+      "score": 19.0,
+      "from_hypo": 0,
+      "type": "Refined",
+      "evidence": ""
+    }
+  ]
+}
