@@ -2,3 +2,10 @@
 langroid>=0.58.2
 transformers>=4.53.2
 neo4j>=5.28.1
+autogen>=0.9.6
+faiss-cpu>=1.11.0
+sentence-transformers>=5.0.0
+
+# Optional dependencies for Jupyter Notebook support
+notebook>=7.7.4
+ipykernel>=6.30.0

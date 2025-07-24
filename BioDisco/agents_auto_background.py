@@ -7,12 +7,12 @@ from typing import List, Sequence
 from dotenv import load_dotenv
 load_dotenv()
 
-from utils.log_utils import write_agent_log
-from agents_evidence import (
+from .utils.log_utils import write_agent_log
+from .agents_evidence import (
     ChatAgent, ChatAgentConfig,
     gpt4turbo_mini_config, ensure_specific_llm_config, clean_llm_config,
     run_full_pipeline,                        # <-- 你已有的函数
-    DomainSelectorAgent, DiseaseExplorerAgent, ScientistAgent,
+    DomainSelectorAgent, DiseaseExplorerAgent, ScientistAgent, KeywordExtractorAgent,
     call_pubmed_search
 )
 
@@ -191,7 +191,48 @@ def run_pipeline_on_file(
                 print(f"[ERROR] line {idx}: {e}")
                 continue
 
+def is_structured_entry(item):
+    return "disease" in item and "core_genes" in item
 
+def auto_structure_item(item):
+    if is_structured_entry(item):
+        return item
+    if "text" in item:
+        input_text = item["text"]
+    elif isinstance(item, str):
+        input_text = item
+    else:
+        input_text = next(iter(item.values()))
+    kws = KeywordExtractorAgent().extract(input_text)
+    disease = ""
+    core_genes = []
+    for kw in kws:
+        if not disease:
+            disease = kw
+        else:
+            core_genes.append(kw)
+
+    if not core_genes and disease:
+        core_genes = [disease]
+    return {"disease": disease, "core_genes": core_genes}
+
+def generate(topic: str, params: dict) -> str:
+    """
+    Generate a structured item from a topic string.
+    
+    Args:
+        topic (str): Input topic string.
+        
+    Returns:
+        Dict: Structured item with disease and core genes.
+    """
+    item = auto_structure_item(topic)
+    disease = item.get("disease", "")
+    core_genes = item.get("core_genes", [])
+    
+    res = run_biodisco_full(disease, core_genes, **params)
+
+    return res['all_hypotheses'][-1]['hypothesis']
 # ------------------------------- CLI ------------------------------------ #
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="BioDisco pipelines")

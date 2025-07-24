@@ -3,7 +3,7 @@ import pickle
 from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
-import torch
+# import torch
 import json
 import faiss
 from neo4j import GraphDatabase
@@ -13,7 +13,7 @@ from langroid.language_models.base import LLMConfig
 from langroid.language_models.openai_gpt import OpenAIGPTConfig
 import openai
 
-from utils.llm_config import (
+from .llm_config import (
     gpt4turbo_mini_config,
     gpt4turbo_mini_config_graph,
     gpt4o_mini_config_graph

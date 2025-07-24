@@ -10,20 +10,20 @@ from transformers import AutoTokenizer, AutoModelForTokenClassification, pipelin
 import random
 from datetime import datetime, timedelta
 from pathlib import Path
-sys.path.insert(0, r"D:\DFKI\SciAgentsDiscovery-openai\SciAgentsDiscovery-main")
-from utils.log_utils import write_agent_log
-from utils.llm_config import (
+
+from .utils.log_utils import write_agent_log
+from .utils.llm_config import (
     gpt4turbo_mini_config,
     gpt4turbo_mini_config_graph,
     gpt4o_mini_config_graph
 )
-from utils.neo4j_query import Neo4jGraph, build_readable_kg_context, DOMAIN_CONFIG,FilterKeywordsAgent,clean_and_split_keywords,embed_map_keywords
-from utils.pubmed_query import (
+from .utils.neo4j_query import Neo4jGraph, build_readable_kg_context, DOMAIN_CONFIG,FilterKeywordsAgent,clean_and_split_keywords,embed_map_keywords
+from .utils.pubmed_query import (
     KeywordQueryAgent, 
     HypothesisQueryAgent, 
     adaptive_pubmed_search
 )
-from utils.libraries import HypothesisLibrary
+from .utils.libraries import HypothesisLibrary
 
 hypo_lib = HypothesisLibrary()
 
@@ -34,7 +34,6 @@ all_kg_edges_set: set = set()
 NEO4J_URI = os.getenv("NEO4J_URI")
 NEO4J_USER = os.getenv("NEO4J_USER")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
-
 
 neo4j_graph = Neo4jGraph(
     uri=NEO4J_URI,
@@ -276,7 +275,7 @@ def call_neo4j_subgraph_core(
     return kg_context
 
 # Switch for disabling KG calls
-DISABLE_KG = False
+DISABLE_KG = True
 _original_call_neo4j = call_neo4j_subgraph_core
 def call_neo4j_subgraph(*args, **kwargs) -> str:
     if DISABLE_KG:
@@ -429,6 +428,7 @@ class KGAgent(ChatAgent):
         )
 
  # PlannerAgent: generate stepwise research workflow
+
 class PlannerAgent(ChatAgent):
     def __init__(self):
         cfg = ChatAgentConfig(
