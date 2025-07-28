@@ -21,7 +21,7 @@ requirements = read_requirements('requirements.txt')
 
 setup(
     name="biodisco",
-    version="0.1.0",
+    version="0.1.1",
     author="BioDisco Team",
     author_email="contact@biodisco.ai",
     description="AI-powered Biomedical Discovery Agent System",
@@ -58,11 +58,11 @@ setup(
             "myst-parser>=0.15",
         ],
     },
-    entry_points={
-        "console_scripts": [
-            "biodisco-cli=BioDisco.cli:main",
-        ],
-    },
+    # entry_points={
+    #     "console_scripts": [
+    #         "biodisco-cli=BioDisco.cli:main",
+    #     ],
+    # },
     include_package_data=True,
     zip_safe=False,
     keywords="biomedical, AI, agents, hypothesis generation, literature mining, knowledge graph",

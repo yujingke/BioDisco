@@ -61,10 +61,33 @@ def LOG(msg: str):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 def init_embeddings(
-    index_path: str = r"D:\DFKI\SciAgentsDiscovery-openai\SciAgentsDiscovery-main\ScienceDiscovery\node_index.faiss",
-    names_path: str = r"D:\DFKI\SciAgentsDiscovery-openai\SciAgentsDiscovery-main\ScienceDiscovery\node_names.pkl",
+    index_path: str = None,
+    names_path: str = None,
     model_name: str = "kamalkraj/BioSimCSE-BioLinkBERT-BASE"
 ):
+    if index_path is None:
+        # Get the directory where this file is located
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        # Go up to BioDisco package root, then to kg folder
+        package_root = os.path.dirname(current_dir)
+        print(f"Current directory: {current_dir}")
+        print(f"Package root: {package_root}")
+        # Go up to BioDisco package root, then to kg folder
+        index_path = os.path.join(package_root, "kg", "node_index.faiss")
+        print('index_path:', index_path)
+    
+    if names_path is None:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        package_root = os.path.dirname(current_dir)
+        print(f"Current directory: {current_dir}")
+        print(f"Package root: {package_root}")
+        names_path = os.path.join(package_root, "kg", "node_names.pkl")
+        print('names_path:', names_path)
+
+    # Add debugging to check if paths exist
+    print(f"index_path exists: {os.path.exists(index_path)}")
+    print(f"names_path exists: {os.path.exists(names_path)}")
+
     # Initialize FAISS index, node names, and embedding model
     global _NODE_NAMES, _FAISS_INDEX, _ST_MODEL
     if _FAISS_INDEX is None:

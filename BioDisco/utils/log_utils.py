@@ -3,6 +3,7 @@ import time, json, pathlib
 
 # Log
 _LOG_PATH = pathlib.Path("run_log.jsonl").resolve()
+
 def write_agent_log(agent, input_data, output_data):
     log_record = {
         "iso_time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),

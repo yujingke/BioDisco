@@ -2,7 +2,7 @@ import pandas as pd
 import csv
 
 # 1. 读取原始数据
-file_path = "D:/DFKI/data/PrimeKG/kg.csv"
+file_path = "kg.csv"
 df = pd.read_csv(
     file_path,
     dtype={
@@ -63,8 +63,8 @@ if id_mapping:
     edges[':END_ID'] = edges[':END_ID'].apply(lambda x: id_mapping[x] if x in id_mapping else x)
 
 # 5. 导出节点和边 CSV 文件
-nodes_path = "D:/DFKI/data/PrimeKG/nodes.csv"
-edges_path = "D:/DFKI/data/PrimeKG/edges.csv"
+nodes_path = "nodes.csv"
+edges_path = "edges.csv"
 
 nodes.to_csv(nodes_path, index=False, quoting=csv.QUOTE_ALL, quotechar='"')
 edges.to_csv(edges_path, index=False, quoting=csv.QUOTE_ALL, quotechar='"')

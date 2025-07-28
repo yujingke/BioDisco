@@ -11,8 +11,7 @@ BioDisco is a comprehensive framework for scientific hypothesis generation and b
 - **Literature Mining**: Intelligent PubMed search and literature analysis
 - **Knowledge Graph Integration**: Neo4j-based knowledge graph for storing and querying biomedical entities
 - **Evidence Collection**: Systematic gathering and linking of supporting evidence
-- **Deduplication**: Smart content deduplication across all data types
-- **Extensible Architecture**: Modular design for easy extension and customization
+- **Simple Python Interface**: Easy-to-use API for scientific discovery
 
 ## 🚀 Quick Start
 
@@ -22,6 +21,93 @@ BioDisco is a comprehensive framework for scientific hypothesis generation and b
 pip install biodisco
 ```
 
+### Basic Usage
+
+BioDisco provides a simple interface for biomedical discovery:
+
+```python
+import BioDisco
+
+# Simple disease-based discovery
+results = BioDisco.generate("Alzheimer's disease")
+
+# Discovery with specific genes
+results = BioDisco.generate("cancer", genes=["BRCA1", "BRCA2"])
+
+# Structured input
+results = BioDisco.generate({
+    "disease": "diabetes",
+    "genes": ["INS", "INSR"],
+    "background": "Type 2 diabetes and insulin resistance"
+})
+
+# Custom parameters
+results = BioDisco.generate(
+    "Parkinson's disease",
+    n_iterations=5,
+    max_results=20,
+    start_year=2020
+)
+```
+
+### Advanced Usage
+
+For more control over the discovery process:
+
+```python
+from BioDisco import (
+    run_biodisco_full,
+    run_full_pipeline,
+    DomainSelectorAgent,
+    DiseaseExplorerAgent
+)
+
+# Full pipeline with specific parameters
+results = run_biodisco_full(
+    disease="multiple sclerosis",
+    core_genes=["HLA-DRB1", "IL7R"],
+    start_year=2019,
+    min_results=3,
+    max_results=10,
+    n_iterations=3
+)
+
+# Evidence-focused pipeline
+evidence_results = run_full_pipeline(
+    background="Research on autoimmune diseases",
+    n_iterations=2,
+    max_lit_per_hypo=8
+)
+    "abstract": "Study showing BRCA1's role in DNA repair mechanisms..."
+}```
+
+## 📋 Prerequisites
+
+- Python 3.8+
+- Neo4j database (optional, for knowledge graph functionality)
+- OpenAI API key (for AI agent functionality)
+
+### Environment Setup
+
+1. **Create a `.env` file** in your project directory:
+   ```bash
+   # OpenAI API Configuration
+   OPENAI_API_KEY=your_openai_api_key_here
+   
+   # Neo4j Database Configuration (optional)
+   NEO4J_URI=bolt://localhost:7687
+   NEO4J_USER=neo4j
+   NEO4J_PASSWORD=your_neo4j_password
+   
+   # PubMed Configuration (optional)
+   PUBMED_EMAIL=your_email@example.com
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   pip install python-dotenv
+   ```
+
 ### Development Installation
 
 ```bash
@@ -29,56 +115,6 @@ git clone https://github.com/yourusername/BioDisco.git
 cd BioDisco
 pip install -e .
 ```
-
-### Basic Usage
-
-```python
-from BioDisco import HypothesisLibrary, LiteratureLibrary, KGLibrary
-
-# Initialize libraries
-hypo_lib = HypothesisLibrary()
-lit_lib = LiteratureLibrary()
-kg_lib = KGLibrary()
-
-# Add a hypothesis
-hypothesis_id = hypo_lib.add("BRCA1 mutations increase susceptibility to DNA damage")
-
-# Add literature evidence
-literature_id = lit_lib.add({
-    "pmid": "12345678",
-    "title": "BRCA1 and DNA Repair",
-    "abstract": "Study showing BRCA1's role in DNA repair mechanisms..."
-})
-
-# Add knowledge graph entities
-node_id = kg_lib.add_node({
-    "entity_id": "BRCA1_gene",
-    "name": "BRCA1",
-    "type": "Gene"
-})
-```
-
-## 📋 Prerequisites
-
-- Python 3.8+
-- Neo4j database (for knowledge graph functionality)
-- OpenAI API key (for AI agent functionality)
-
-### Environment Setup
-
-1. **Neo4j Setup**:
-   ```bash
-   # Install Neo4j and start the service
-   # Default credentials: neo4j/password
-   ```
-
-2. **Environment Variables**:
-   ```bash
-   export OPENAI_API_KEY="your-openai-api-key"
-   export NEO4J_URI="bolt://localhost:7687"
-   export NEO4J_USER="neo4j"
-   export NEO4J_PASSWORD="your-password"
-   ```
 
 ## 🏗️ Architecture
 
@@ -249,6 +285,61 @@ pytest --cov=BioDisco --cov-report=html
 ## 📖 Documentation
 
 Full documentation is available at: [https://biodisco.readthedocs.io/](https://biodisco.readthedocs.io/)
+
+```
+
+## 📚 API Reference
+
+### Main Interface
+
+#### `BioDisco.generate(input_data, **kwargs)`
+
+The primary interface for biomedical discovery.
+
+**Parameters:**
+- `input_data` (str or dict): Disease name or structured input
+- `genes` (list, optional): List of gene names 
+- `background` (str, optional): Background research context
+- `start_year` (int, optional): Earliest publication year (default: 2019)
+- `min_results` (int, optional): Minimum search results (default: 3)
+- `max_results` (int, optional): Maximum search results (default: 10)
+- `n_iterations` (int, optional): Number of discovery iterations (default: 3)
+- `max_articles_per_round` (int, optional): Articles per iteration (default: 10)
+- `node_limit` (int, optional): Knowledge graph node limit (default: 50)
+- `direct_edge_limit` (int, optional): Knowledge graph edge limit (default: 30)
+
+**Returns:**
+- `dict`: Discovery results with hypotheses, evidence, and analysis
+
+**Examples:**
+```python
+# Simple usage
+results = BioDisco.generate("diabetes")
+
+# With genes
+results = BioDisco.generate("cancer", genes=["BRCA1", "BRCA2"])
+
+# Structured input
+results = BioDisco.generate({
+    "disease": "Alzheimer's", 
+    "genes": ["APP", "PSEN1"],
+    "background": "Amyloid cascade hypothesis"
+})
+
+# Custom parameters
+results = BioDisco.generate(
+    "multiple sclerosis",
+    n_iterations=5,
+    max_results=20,
+    start_year=2020
+)
+```
+
+### Advanced Functions
+
+- `run_biodisco_full(disease, core_genes, **params)`: Full pipeline with background generation
+- `run_full_pipeline(background, **params)`: Evidence-focused pipeline
+- `run_background_only(disease, core_genes, **params)`: Generate research background only
 
 ## 🤝 Contributing
 

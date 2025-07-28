@@ -233,6 +233,7 @@ def generate(topic: str, params: dict) -> str:
     res = run_biodisco_full(disease, core_genes, **params)
 
     return res['all_hypotheses'][-1]['hypothesis']
+
 # ------------------------------- CLI ------------------------------------ #
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="BioDisco pipelines")

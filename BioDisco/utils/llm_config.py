@@ -16,7 +16,6 @@ gpt4o_mini_config = {
     "max_output_tokens": 1000      
 }
 
-
 gpt4o_mini_config_graph = {
     "chat_model": "gpt-4o-mini",
     "cache_seed": 42,

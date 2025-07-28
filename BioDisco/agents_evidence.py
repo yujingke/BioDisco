@@ -275,7 +275,7 @@ def call_neo4j_subgraph_core(
     return kg_context
 
 # Switch for disabling KG calls
-DISABLE_KG = True
+DISABLE_KG = False
 _original_call_neo4j = call_neo4j_subgraph_core
 def call_neo4j_subgraph(*args, **kwargs) -> str:
     if DISABLE_KG:
