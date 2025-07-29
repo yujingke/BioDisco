@@ -15,22 +15,9 @@ def main():
     
     # Example 1: Simple disease query
     print("\n1. Simple disease-based discovery:")
-    print("   params = {")
-    print("       start_year=2019,")
-    print("       min_results=3,")
-    print("       max_results=10,")
-    print("       n_iterations=1,")
-    print("       max_articles_per_round=10")
-    print("   }")
-    print("   BioDisco.generate('T Cell Exhaustion Mechanisms and Therapeutic Targets in NSCLC', params=params)")
-    params = dict(
-        start_year=2019,
-        min_results=3,
-        max_results=10,
-        n_iterations=1,
-        max_articles_per_round=10,
-    )
-    results = BioDisco.generate("T Cell Exhaustion Mechanisms and Therapeutic Targets in NSCLC", params=params)
+    print("   BioDisco.generate('T Cell Exhaustion Mechanisms and Therapeutic Targets in NSCLC')")
+
+    results = BioDisco.generate("T Cell Exhaustion Mechanisms and Therapeutic Targets in NSCLC")
     print('Results:', results)
 
     print("\n✅ BioDisco is ready to use!")

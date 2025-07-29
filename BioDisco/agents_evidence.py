@@ -17,7 +17,7 @@ from .utils.llm_config import (
     gpt4turbo_mini_config_graph,
     gpt4o_mini_config_graph
 )
-from .utils.neo4j_query import Neo4jGraph, build_readable_kg_context, DOMAIN_CONFIG,FilterKeywordsAgent,clean_and_split_keywords,embed_map_keywords
+from .utils.neo4j_query import Neo4jGraph, build_readable_kg_context, DOMAIN_CONFIG, FilterKeywordsAgent, clean_and_split_keywords, embed_map_keywords
 from .utils.pubmed_query import (
     KeywordQueryAgent, 
     HypothesisQueryAgent, 
@@ -26,7 +26,6 @@ from .utils.pubmed_query import (
 from .utils.libraries import HypothesisLibrary
 
 hypo_lib = HypothesisLibrary()
-
 
 all_kg_nodes_set: set = set()
 all_kg_edges_set: set = set()
@@ -275,12 +274,13 @@ def call_neo4j_subgraph_core(
     return kg_context
 
 # Switch for disabling KG calls
-DISABLE_KG = False
-_original_call_neo4j = call_neo4j_subgraph_core
+# DISABLE_KG = False
 def call_neo4j_subgraph(*args, **kwargs) -> str:
+    DISABLE_KG = os.getenv("DISABLE_KG", "true").lower() in {"true"}
+    print('disable_kg:', DISABLE_KG)
     if DISABLE_KG:
         return ""
-    return _original_call_neo4j(*args, **kwargs)
+    return call_neo4j_subgraph_core(*args, **kwargs)
 
 # PubMed search agent with LLM-based strategy
 # 1. 定义真正的 PubMed 查询函数
@@ -316,9 +316,11 @@ def call_pubmed_search_core(
     }
 
 # 2. 切换开关函数
-DISABLE_PUBMED = False
+# DISABLE_PUBMED = False
 
 def call_pubmed_search(*args, **kwargs):
+    DISABLE_PUBMED = os.getenv("DISABLE_PUBMED", "true").lower() in {"true"}
+    print('disable_pubmed:', DISABLE_PUBMED)
     if DISABLE_PUBMED:
         return {
             "strategy": {},
@@ -802,7 +804,7 @@ def run_full_pipeline(
     node_limit: int = 30,
     pubmed_min_results: int = 1,
     pubmed_max_results: int = 4,
-    record_dir: str = r"D:\DFKI\SciAgentsDiscovery-openai\run_records"
+    record_dir: str = 'logs'
 ):
     import os, json
     RECORD_DIR = record_dir

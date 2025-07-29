@@ -3,6 +3,7 @@ import argparse
 import json
 from datetime import datetime
 from typing import List, Sequence
+import os
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -216,7 +217,7 @@ def auto_structure_item(item):
         core_genes = [disease]
     return {"disease": disease, "core_genes": core_genes}
 
-def generate(topic: str, params: dict) -> str:
+def generate(topic: str, **kwargs) -> str:
     """
     Generate a structured item from a topic string.
     
@@ -226,6 +227,34 @@ def generate(topic: str, params: dict) -> str:
     Returns:
         Dict: Structured item with disease and core genes.
     """
+    params = dict(
+        start_year=2019,
+        min_results=3,
+        max_results=10,
+        n_iterations=3,
+        max_articles_per_round=10,
+    )
+
+    # Set environment variables to override global defaults
+    if 'disable_pubmed' in kwargs:
+        if kwargs['disable_pubmed']:
+            os.environ['DISABLE_PUBMED'] = 'True'
+        else:
+            os.environ['DISABLE_PUBMED'] = 'False'
+
+    if 'disable_kg' in kwargs:
+        if kwargs['disable_kg']:
+            os.environ['DISABLE_KG'] = 'True'
+        else:
+            os.environ['DISABLE_KG'] = 'False'
+    
+    # Update params with any additional kwargs
+    for key in kwargs:
+        if key in params:
+            params[key] = kwargs[key]
+        elif key not in ['disable_pubmed', 'disable_kg']:
+            print(f"Warning: Unrecognized parameter '{key}' in kwargs. It will be ignored.")
+
     item = auto_structure_item(topic)
     disease = item.get("disease", "")
     core_genes = item.get("core_genes", [])
@@ -233,158 +262,3 @@ def generate(topic: str, params: dict) -> str:
     res = run_biodisco_full(disease, core_genes, **params)
 
     return res['all_hypotheses'][-1]['hypothesis']
-
-# ------------------------------- CLI ------------------------------------ #
-def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="BioDisco pipelines")
-    p.add_argument("--in",  dest="input_jsonl",  default="test.jsonl")
-    p.add_argument("--out", dest="output_jsonl", default="result.jsonl")
-    p.add_argument("--mode", choices=["simple", "full"], default="full")
-
-    # PubMed / BG
-    p.add_argument("--start_year", type=int, default=2019)
-    p.add_argument("--min_results", type=int, default=3)
-    p.add_argument("--max_results", type=int, default=10)
-
-    # run_full_pipeline 常用参数
-    p.add_argument("--node_limit", type=int, default=50)
-    p.add_argument("--direct_edge_limit", type=int, default=30)
-    p.add_argument("--max_paths",      type=int, default=0)
-    p.add_argument("--n_iterations",   type=int, default=3)
-    p.add_argument("--max_articles_per_round", type=int, default=10)
-
-    return p.parse_args()
-
-
-if __name__ == "__main__":
-    args = parse_args()
-    run_pipeline_on_file(
-        input_jsonl=args.input_jsonl,
-        output_jsonl=args.output_jsonl,
-        mode="full" if args.mode == "full" else "simple",
-        start_year=args.start_year,
-        min_results=args.min_results,
-        max_results=args.max_results,
-        node_limit=args.node_limit,
-        direct_edge_limit=args.direct_edge_limit,
-        max_paths=args.max_paths,
-        n_iterations=args.n_iterations,
-        max_articles_per_round=args.max_articles_per_round,
-    )
-
-# Temporal eval gpt3.5
-# import json
-
-# def clean_unicode_garbage(text):
-#     text = text.replace("â\x80\x93", "-").replace("â\x80\x94", "-")
-#     text = text.replace("â€“", "-").replace("â€”", "-")
-#     return text
-
-# def clean_text(text):
-#     return (text.replace("Ã¢ÂÂ", "–")
-#                 .replace("Ã¢ÂÂ", "—")
-#                 .replace("â€™", "'")
-#                 .replace("â€“", "–")
-#                 .replace("â€”", "—")
-#                 .replace("ÃÂº", "κ")
-#                 .replace("â€œ", '"')
-#                 .replace("â€�", '"')
-#                 .replace("Ã¢ÂÂ", "'")
-#                 .replace("Ã¢ÂÂ", "'")
-#                 .replace("Ã¢ÂÂ", '"')
-#                 .replace("Ã¢ÂÂ", '"')
-#                 .replace("ÃÂ±", "±")
-#                 .replace("ÃÂµ", "µ")
-#                 .replace("ÃÂ°C", "°C")
-#                 .replace("ÃÂ", "")
-#             )
-
-# def get_scientist_initial_hypo(background):
-
-#     try:
-#         from agents_background import ScientistAgent, DiseaseExplorerAgent, DomainSelectorAgent
-#         domain = DomainSelectorAgent().step(background)
-#         kg_context = DiseaseExplorerAgent().step(background, domain)
-#         sci_raw = ScientistAgent().step(background, kg_context)
-#         hypos = [h.strip() for h in sci_raw.split("\n") if h.strip()]
-#         return hypos[0] if hypos else "Failed to generate hypothesis"
-#     except Exception as e:
-#         print(f"[ERROR][ScientistAgent fallback] {e}")
-#         return "Failed to generate hypothesis"
-
-# if __name__ == "__main__":
-#     bg_input_jsonl = r"D:\DFKI\SciAgentsDiscovery-openai\test.jsonl"
-#     out_jsonl = r"D:\DFKI\SciAgentsDiscovery-openai\result.jsonl"
-
-#     with open(bg_input_jsonl, "r", encoding="utf-8") as for_read, \
-#          open(out_jsonl, "a", encoding="utf-8") as for_write:
-
-#         for idx, line in enumerate(for_read, 1):
-#             try:
-#                 line = line.strip()
-#                 if not line or not line.lstrip().startswith("{"):
-#                     continue
-#                 line = clean_unicode_garbage(line)
-#                 try:
-#                     obj = json.loads(line)
-#                 except Exception as e:
-#                     print(f"[ERROR] JSON decode failed: {e} (line: {repr(line)})")
-#                     continue
-
-#                 background = clean_text(obj.get("background", "").strip())
-#                 if not background:
-#                     continue
-
-#                 print(f"\n==== [{idx}] Running full pipeline ====")
-#                 try:
-#                     all_hypotheses_info = run_full_pipeline(background)
-#                     refineds = [h for h in all_hypotheses_info if h.get('type') == 'Refined']
-#                     initials = [h for h in all_hypotheses_info if h.get('type') == 'Scientist']
-#                     if refineds:
-#                         best = max(refineds, key=lambda x: x.get('score', float('-inf')))
-#                         final_hypo = best.get('hypothesis', '').strip()
-#                     elif initials:
-#                         best = max(initials, key=lambda x: x.get('score', float('-inf')))
-#                         final_hypo = best.get('hypothesis', '').strip()
-#                     else:
-#                         final_hypo = ""
-                     
-#                     if not final_hypo:
-#                         print("[WARN] No refined or initial hypothesis, using fallback scientist only.")
-#                         final_hypo = get_scientist_initial_hypo(background)
-#                 except Exception as e:
-#                     print(f"[ERROR][Pipeline] {e}\n[INFO] Fallback: Running ScientistAgent only for idx={idx}")
-#                     final_hypo = get_scientist_initial_hypo(background)
-
-#                 if not final_hypo:
-#                     final_hypo = "No hypothesis generated."
-
-#                 out_item = {
-#                     "background": background,
-#                     "final_hypothesis": clean_text(final_hypo)
-#                 }
-#                 for_write.write(json.dumps(out_item, ensure_ascii=False) + "\n")
-#                 for_write.flush()  
-#                 print(f"===> Done: final hypothesis: {final_hypo}")
-
-#             except Exception as e:
-#                 print(f"[ERROR] {e} (line content: {repr(line)})")
-
-#                 try:
-#                     background = clean_text(obj.get("background", "").strip())
-#                 except:
-#                     background = ""
-#                 try:
-#                     fallback_hypo = clean_text(obj.get("hypothesis", "").strip())
-#                 except:
-#                     fallback_hypo = "No hypothesis generated."
-#                 if background and fallback_hypo:
-#                     out_item = {
-#                         "background": background,
-#                         "final_hypothesis": fallback_hypo
-#                     }
-#                     for_write.write(json.dumps(out_item, ensure_ascii=False) + "\n")
-#                     for_write.flush()
-#                     print(f"[ERROR][Fallback] Wrote original hypothesis for idx={idx}")
-#                 continue
-
