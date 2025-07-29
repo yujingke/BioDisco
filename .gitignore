@@ -1,5 +1,4 @@
 .env
-.env*
 __pycache__/
 .chainlit/
 *.jsonl
@@ -20,3 +19,9 @@ build/
 *.faiss
 
 env*
+logs/
+info
+test_neo4j.py
+basic_usage.py
+hypothesis_pipeline.ipynb
+main.ipynb
