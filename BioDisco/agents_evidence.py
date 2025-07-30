@@ -30,15 +30,34 @@ hypo_lib = HypothesisLibrary()
 all_kg_nodes_set: set = set()
 all_kg_edges_set: set = set()
 
+
 NEO4J_URI = os.getenv("NEO4J_URI")
 NEO4J_USER = os.getenv("NEO4J_USER")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 
-neo4j_graph = Neo4jGraph(
-    uri=NEO4J_URI,
-    user=NEO4J_USER,
-    password=NEO4J_PASSWORD
-)
+neo4j_graph = None
+def get_neo4j_graph():
+    """Get Neo4j graph instance, creating it if necessary"""
+    global neo4j_graph
+    if neo4j_graph is None:
+        uri = os.getenv("NEO4J_URI")
+        user = os.getenv("NEO4J_USER")
+        password = os.getenv("NEO4J_PASSWORD")
+        
+        if not all([uri, user, password]):
+            raise Exception(
+                "Neo4j credentials not found. Please set NEO4J_URI, NEO4J_USER, and NEO4J_PASSWORD environment variables."
+            )
+        
+        neo4j_graph = Neo4jGraph(uri=uri, user=user, password=password)
+    
+    return neo4j_graph
+
+# neo4j_graph = Neo4jGraph(
+#     uri=NEO4J_URI,
+#     user=NEO4J_USER,
+#     password=NEO4J_PASSWORD
+# )
 
 # Parse hypotheses and evidence from raw output
 def parse_hypos(raw: str):
@@ -245,7 +264,9 @@ def call_neo4j_subgraph_core(
     filtered_kws   = filter_agent.filter(background, candidates)
     if not filtered_kws:
         return json.dumps({"nodes": [], "direct_edges": [], "multihop_paths": []}, ensure_ascii=False)
-    summary_str = neo4j_graph.get_subgraph(
+    
+    graph = get_neo4j_graph()
+    summary_str = graph.get_subgraph(
         background=background,
         query_keywords=filtered_kws,
         domain=domain,
