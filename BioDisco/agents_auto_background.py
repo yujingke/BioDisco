@@ -3,7 +3,7 @@ import argparse
 import json
 from datetime import datetime
 from typing import List, Sequence
-
+import os
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -14,8 +14,10 @@ from agents_evidence import (
     ensure_specific_llm_config, clean_llm_config,
     run_full_pipeline,                        
     DomainSelectorAgent, DiseaseExplorerAgent, ScientistAgent,
-    call_pubmed_search
+    call_pubmed_search,
+    KeywordExtractorAgent
 )
+
 
 # ----------------------------- LLM agent -------------------------------- #
 class BackgroundSummariserAgent(ChatAgent):
@@ -211,44 +213,59 @@ def run_pipeline_on_file(
                 print(f"[ERROR] line {idx}: {e}")
                 continue
 
+def is_structured_entry(item):
+    return "disease" in item and "core_genes" in item
 
-# ------------------------------- CLI ------------------------------------ #
-def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="BioDisco pipelines")
-    p.add_argument("--in",  dest="input_jsonl",  default="test.jsonl")
-    p.add_argument("--out", dest="output_jsonl", default="result.jsonl")
-    p.add_argument("--mode", choices=["simple", "full"], default="full")
+def auto_structure_item(item):
+    if is_structured_entry(item):
+        return item
+    if "text" in item:
+        input_text = item["text"]
+    elif isinstance(item, str):
+        input_text = item
+    else:
+        input_text = next(iter(item.values()))
+    kws = KeywordExtractorAgent().extract(input_text)
+    disease = ""
+    core_genes = []
+    for kw in kws:
+        if not disease:
+            disease = kw
+        else:
+            core_genes.append(kw)
+    if not core_genes and disease:
+        core_genes = [disease]
+    return {"disease": disease, "core_genes": core_genes}
 
-    # PubMed / BG
-    p.add_argument("--start_date", type=str, default="2019/01/01")
-    p.add_argument("--end_date",   type=str, default="2023/12/31")
+def generate(topic: str, **kwargs) -> str:
 
-    p.add_argument("--min_results", type=int, default=3)
-    p.add_argument("--max_results", type=int, default=10)
-
-    p.add_argument("--node_limit", type=int, default=50)
-    p.add_argument("--direct_edge_limit", type=int, default=30)
-    p.add_argument("--max_paths",      type=int, default=0)
-    p.add_argument("--n_iterations",   type=int, default=3)
-    p.add_argument("--max_articles_per_round", type=int, default=10)
-
-    return p.parse_args()
-
-
-if __name__ == "__main__":
-    args = parse_args()
-    run_pipeline_on_file(
-        input_jsonl=args.input_jsonl,
-        output_jsonl=args.output_jsonl,
-        mode="full" if args.mode == "full" else "simple",
-        start_data=args.start_data,
-        end_data=args.end_data, 
-        min_results=args.min_results,
-        max_results=args.max_results,
-        node_limit=args.node_limit,
-        direct_edge_limit=args.direct_edge_limit,
-        max_paths=args.max_paths,
-        n_iterations=args.n_iterations,
-        max_articles_per_round=args.max_articles_per_round,
+    params = dict(
+        start_date="2019/01/01",
+        end_date="2023/12/31",
+        min_results=3,
+        max_results=10,
+        node_limit=50,
+        direct_edge_limit=30,
+        max_paths=0,
+        n_iterations=3,
+        max_articles_per_round=10,
     )
 
+    # Set environment variables to override global defaults
+    if 'disable_pubmed' in kwargs:
+        os.environ['DISABLE_PUBMED'] = 'True' if kwargs['disable_pubmed'] else 'False'
+
+    if 'disable_kg' in kwargs:
+        os.environ['DISABLE_KG'] = 'True' if kwargs['disable_kg'] else 'False'
+
+    for key in kwargs:
+        if key not in ['disable_pubmed', 'disable_kg']:
+            params[key] = kwargs[key]  
+
+    item = auto_structure_item(topic)
+    disease = item.get("disease", "") # type: ignore
+    core_genes = item.get("core_genes", []) # type: ignore
+
+    res = run_biodisco_full(disease, core_genes, **params)# type: ignore
+
+    return res['all_hypotheses'][-1]['hypothesis']

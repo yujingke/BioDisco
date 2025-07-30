@@ -38,21 +38,29 @@ hypo_lib = HypothesisLibrary()
 all_kg_nodes_set: set = set()
 all_kg_edges_set: set = set()
 
-def require_env(var: str) -> str:
-    val = os.getenv(var)
-    if val is None:
-        raise RuntimeError(f"Environment variable {var} is not set!")
-    return val
 
-NEO4J_URI = require_env("NEO4J_URI")
-NEO4J_USER = require_env("NEO4J_USER")
-NEO4J_PASSWORD = require_env("NEO4J_PASSWORD")
+NEO4J_URI = os.getenv("NEO4J_URI")
+NEO4J_USER = os.getenv("NEO4J_USER")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 
-neo4j_graph = Neo4jGraph(
-    uri=NEO4J_URI,
-    user=NEO4J_USER,
-    password=NEO4J_PASSWORD
-)
+neo4j_graph = None
+def get_neo4j_graph():
+    """Get Neo4j graph instance, creating it if necessary"""
+    global neo4j_graph
+    if neo4j_graph is None:
+        uri = os.getenv("NEO4J_URI")
+        user = os.getenv("NEO4J_USER")
+        password = os.getenv("NEO4J_PASSWORD")
+        
+        if not all([uri, user, password]):
+            raise Exception(
+                "Neo4j credentials not found. Please set NEO4J_URI, NEO4J_USER, and NEO4J_PASSWORD environment variables."
+            )
+        
+        neo4j_graph = Neo4jGraph(uri=uri, user=user, password=password)
+    
+    return neo4j_graph
+
 
 # Parse hypotheses and evidence from raw output
 def parse_hypos(raw: str):
@@ -259,7 +267,8 @@ def call_neo4j_subgraph_core(
     filtered_kws   = filter_agent.filter(background, candidates)
     if not filtered_kws:
         return json.dumps({"nodes": [], "direct_edges": [], "multihop_paths": []}, ensure_ascii=False)
-    summary_str = neo4j_graph.get_subgraph(
+    graph = get_neo4j_graph()
+    summary_str = graph.get_subgraph(
         background=background,
         query_keywords=filtered_kws,
         domain=domain,
@@ -288,12 +297,14 @@ def call_neo4j_subgraph_core(
     return kg_context
 
 # Switch for disabling KG calls
-DISABLE_KG = False
-_original_call_neo4j = call_neo4j_subgraph_core
+# DISABLE_KG = False
 def call_neo4j_subgraph(*args, **kwargs) -> str:
+    DISABLE_KG = os.getenv("DISABLE_KG", "true").lower() in {"true"}
+    print('disable_kg:', DISABLE_KG)
     if DISABLE_KG:
         return ""
-    return _original_call_neo4j(*args, **kwargs)
+    return call_neo4j_subgraph_core(*args, **kwargs)
+
 
 # PubMed search agent with LLM-based strategy
 def call_pubmed_search_core(
@@ -333,9 +344,10 @@ def call_pubmed_search_core(
     }
 
 # 2. 切换开关函数
-DISABLE_PUBMED = False
-
+# DISABLE_PUBMED = False
 def call_pubmed_search(*args, **kwargs):
+    DISABLE_PUBMED = os.getenv("DISABLE_PUBMED", "true").lower() in {"true"}
+    print('disable_pubmed:', DISABLE_PUBMED)
     if DISABLE_PUBMED:
         return {
             "strategy": {},
@@ -344,6 +356,7 @@ def call_pubmed_search(*args, **kwargs):
             "used_groups": []
         }
     return call_pubmed_search_core(*args, **kwargs)
+
 
 
 # KeywordExtractorAgent: extract biomedical entities using BioBERT NER or LLM
