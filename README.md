@@ -51,7 +51,7 @@ OPENAI_API_KEY=your_openai_api_key_here
 
 ```bash
 ## not revealing username for anonymizing
-git clone https://github.com/yourusername/BioDisco.git
+git clone https://github.com/yujingke/BioDisco.git
 cd BioDisco
 pip install -e .
 ```
