@@ -1,44 +1,108 @@
-# gpt-40-mini
-
+# utils/llm_config.py
 import autogen
 
-# Load configuration
-config_list_gpt4o_mini = autogen.config_list_from_models(model_list=["gpt-4o-mini"])
+DEFAULT_MODEL_NAME = "mistral-large-2411"
 
-config_list_turbo_alias_gpt_4o_mini = autogen.config_list_from_models(model_list=["gpt-4o-mini"])
+def get_config_list(model_name: str = DEFAULT_MODEL_NAME):
+    return autogen.config_list_from_models(model_list=[model_name])
 
-gpt4o_mini_config = {
-    "chat_model": "gpt-4o-mini",                
+config_list = get_config_list(DEFAULT_MODEL_NAME)
+
+KEYWORD_CONFIG = {
+    "chat_model": DEFAULT_MODEL_NAME,
     "cache_seed": 42,
-    "temperature": 0.8,
-    "config_list": config_list_gpt4o_mini,
+    "temperature": 0.3,
+    "config_list": config_list,
     "timeout": 540000,
-    "max_output_tokens": 1000      
+    "max_output_tokens": 256
 }
 
-gpt4o_mini_config_graph = {
-    "chat_model": "gpt-4o-mini",
+DOMAIN_CONFIG = {
+    "chat_model": DEFAULT_MODEL_NAME,
     "cache_seed": 42,
-    "temperature": 0.8,
-    "config_list": config_list_gpt4o_mini,
+    "temperature": 0.2,
+    "config_list": config_list,
     "timeout": 540000,
-    "max_output_tokens": 1500
+    "max_output_tokens": 128
 }
 
-gpt4turbo_mini_config = {
-    "chat_model": "gpt-4o-mini",
+KG_AGENT_CONFIG = {
+    "chat_model": DEFAULT_MODEL_NAME,
     "cache_seed": 42,
-    "temperature": 0.8,
-    "config_list": config_list_turbo_alias_gpt_4o_mini,
+    "temperature": 0.3,
+    "config_list": config_list,
     "timeout": 540000,
-    "max_output_tokens": 1024
+    "max_output_tokens": 800
 }
 
-gpt4turbo_mini_config_graph = {
-    "chat_model": "gpt-4o-mini",
+PLANNER_CONFIG = {
+    "chat_model": DEFAULT_MODEL_NAME,
     "cache_seed": 42,
-    "temperature": 0.8,
-    "config_list": config_list_turbo_alias_gpt_4o_mini,
+    "temperature": 0.4,
+    "config_list": config_list,
     "timeout": 540000,
-    "max_output_tokens": 2000
+    "max_output_tokens": 350
+}
+
+BACKGROUND_SUMMARISER_CONFIG = {
+    "chat_model": DEFAULT_MODEL_NAME,
+    "cache_seed": 42,
+    "temperature": 0.3,
+    "config_list": config_list,
+    "timeout": 540000,
+    "max_output_tokens": 320
+}
+
+SCIENTIST_AGENT_CONFIG = {
+    "chat_model": DEFAULT_MODEL_NAME,
+    "cache_seed": 42,
+    "temperature": 0.5,
+    "config_list": config_list,
+    "timeout": 540000,
+    "max_output_tokens": 96
+}
+
+PUBMED_AGENT_CONFIG = {
+    "chat_model": DEFAULT_MODEL_NAME,
+    "cache_seed": 42,
+    "temperature": 0.2,
+    "config_list": config_list,
+    "timeout": 540000,
+    "max_output_tokens": 900
+}
+
+CRITIC_AGENT_CONFIG = {
+    "chat_model": DEFAULT_MODEL_NAME,
+    "cache_seed": 42,
+    "temperature": 0.3,
+    "config_list": config_list,
+    "timeout": 540000,
+    "max_output_tokens": 512
+}
+
+REVISION_AGENT_CONFIG = {
+    "chat_model": DEFAULT_MODEL_NAME,
+    "cache_seed": 42,
+    "temperature": 0.2,
+    "config_list": config_list,
+    "timeout": 540000,
+    "max_output_tokens": 128
+}
+
+REFINE_AGENT_CONFIG = {
+    "chat_model": DEFAULT_MODEL_NAME,
+    "cache_seed": 42,
+    "temperature": 0.5,
+    "config_list": config_list,
+    "timeout": 540000,
+    "max_output_tokens": 128
+}
+
+DECISION_AGENT_CONFIG = {
+    "chat_model": DEFAULT_MODEL_NAME,
+    "cache_seed": 42,
+    "temperature": 0.2,
+    "config_list": config_list,
+    "timeout": 540000,
+    "max_output_tokens": 128
 }

@@ -3,17 +3,17 @@ import argparse
 import json
 from datetime import datetime
 from typing import List, Sequence
-import os
 
 from dotenv import load_dotenv
 load_dotenv()
 
-from .utils.log_utils import write_agent_log
-from .agents_evidence import (
+from utils.llm_config import BACKGROUND_SUMMARISER_CONFIG
+from utils.log_utils import write_agent_log
+from agents_evidence import (
     ChatAgent, ChatAgentConfig,
-    gpt4turbo_mini_config, ensure_specific_llm_config, clean_llm_config,
-    run_full_pipeline,                        # <-- 你已有的函数
-    DomainSelectorAgent, DiseaseExplorerAgent, ScientistAgent, KeywordExtractorAgent,
+    ensure_specific_llm_config, clean_llm_config,
+    run_full_pipeline,                        
+    DomainSelectorAgent, DiseaseExplorerAgent, ScientistAgent,
     call_pubmed_search
 )
 
@@ -21,7 +21,7 @@ from .agents_evidence import (
 class BackgroundSummariserAgent(ChatAgent):
     def __init__(self):
         cfg = ChatAgentConfig(
-            llm=ensure_specific_llm_config(clean_llm_config(gpt4turbo_mini_config)),
+            llm=ensure_specific_llm_config(clean_llm_config(BACKGROUND_SUMMARISER_CONFIG)),
             system_message=(
                 "BackgroundSummariserAgent:\n"
                 "Task: Given PubMed article metadata about a disease and core genes, write a concise "
@@ -47,7 +47,17 @@ class BackgroundSummariserAgent(ChatAgent):
             "Produce concise background (<=150 words)"
         )
         resp = self.llm_response(prompt)
-        background = resp.content.strip() if hasattr(resp, "content") else str(resp).strip()
+
+        # 兼容所有情况
+        if resp is None:
+            background = ""
+        elif hasattr(resp, "content"):
+            background = resp.content.strip()
+        elif isinstance(resp, str):
+            background = resp.strip()
+        else:
+            background = str(resp).strip()
+
         write_agent_log(
             "BackgroundSummariserAgent",
             {"disease": disease, "genes": genes, "articles": article_blocks},
@@ -61,7 +71,8 @@ def build_background_summary(
     disease: str,
     core_genes: Sequence[str],
     related_articles: list | None = None,
-    start_year: int = 2019,
+    start_date: str = "2019/01/01",
+    end_date: str = "2023/12/31",
     retmax: int = 10,
 ) -> str:
     if related_articles is None:
@@ -71,15 +82,17 @@ def build_background_summary(
     timestamp = datetime.utcnow().strftime("%Y-%m-%d")
     header = (
         f"### Auto-generated background for {disease} (genes: {', '.join(core_genes)}), "
-        f"PubMed cut-off ≥{start_year} (generated {timestamp} UTC)\n\n"
+        f"PubMed window: {start_date} - {end_date} (generated {timestamp} UTC)\n\n"
     )
     return header + background
+
 
 
 def run_background_only(
     disease: str,
     core_genes: Sequence[str],
-    start_year: int = 2019,
+    start_date: str = "2019/01/01",
+    end_date: str = "2023/12/31",
     min_results: int = 3,
     max_results: int = 10,
 ):
@@ -88,6 +101,8 @@ def run_background_only(
         keywords=[disease] + list(core_genes),
         min_results=min_results,
         max_results=max_results,
+        start_date=start_date,
+        end_date=end_date, 
     )
     articles = articles_result["articles"]
 
@@ -95,7 +110,8 @@ def run_background_only(
         disease=disease,
         core_genes=core_genes,
         related_articles=articles,
-        start_year=start_year,
+        start_date=start_date,
+        end_date=end_date,
         retmax=max_results,
     )
 
@@ -117,7 +133,8 @@ def run_background_only(
 def run_biodisco_full(
     disease: str,
     core_genes: Sequence[str],
-    start_year: int = 2019,
+    start_date: str = "2019/01/01",
+    end_date: str = "2023/12/31",
     min_results: int = 3,
     max_results: int = 10,
     node_limit: int = 50,
@@ -133,6 +150,8 @@ def run_biodisco_full(
         keywords=[disease] + list(core_genes),
         min_results=min_results,
         max_results=max_results,
+        start_date=start_date,
+        end_date=end_date, 
     )
     articles = art_res["articles"]
 
@@ -140,11 +159,11 @@ def run_biodisco_full(
         disease=disease,
         core_genes=core_genes,
         related_articles=articles,
-        start_year=start_year,
+        start_date=start_date,
+        end_date=end_date, 
         retmax=max_results
     )
 
-    # 传递参数到 run_full_pipeline
     all_hypotheses_info = run_full_pipeline(
         background,
         n_iterations=n_iterations,
@@ -192,73 +211,44 @@ def run_pipeline_on_file(
                 print(f"[ERROR] line {idx}: {e}")
                 continue
 
-def is_structured_entry(item):
-    return "disease" in item and "core_genes" in item
 
-def auto_structure_item(item):
-    if is_structured_entry(item):
-        return item
-    if "text" in item:
-        input_text = item["text"]
-    elif isinstance(item, str):
-        input_text = item
-    else:
-        input_text = next(iter(item.values()))
-    kws = KeywordExtractorAgent().extract(input_text)
-    disease = ""
-    core_genes = []
-    for kw in kws:
-        if not disease:
-            disease = kw
-        else:
-            core_genes.append(kw)
+# ------------------------------- CLI ------------------------------------ #
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="BioDisco pipelines")
+    p.add_argument("--in",  dest="input_jsonl",  default="test.jsonl")
+    p.add_argument("--out", dest="output_jsonl", default="result.jsonl")
+    p.add_argument("--mode", choices=["simple", "full"], default="full")
 
-    if not core_genes and disease:
-        core_genes = [disease]
-    return {"disease": disease, "core_genes": core_genes}
+    # PubMed / BG
+    p.add_argument("--start_date", type=str, default="2019/01/01")
+    p.add_argument("--end_date",   type=str, default="2023/12/31")
 
-def generate(topic: str, **kwargs) -> str:
-    """
-    Generate a structured item from a topic string.
-    
-    Args:
-        topic (str): Input topic string.
-        
-    Returns:
-        Dict: Structured item with disease and core genes.
-    """
-    params = dict(
-        start_year=2019,
-        min_results=3,
-        max_results=10,
-        n_iterations=3,
-        max_articles_per_round=10,
+    p.add_argument("--min_results", type=int, default=3)
+    p.add_argument("--max_results", type=int, default=10)
+
+    p.add_argument("--node_limit", type=int, default=50)
+    p.add_argument("--direct_edge_limit", type=int, default=30)
+    p.add_argument("--max_paths",      type=int, default=0)
+    p.add_argument("--n_iterations",   type=int, default=3)
+    p.add_argument("--max_articles_per_round", type=int, default=10)
+
+    return p.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    run_pipeline_on_file(
+        input_jsonl=args.input_jsonl,
+        output_jsonl=args.output_jsonl,
+        mode="full" if args.mode == "full" else "simple",
+        start_data=args.start_data,
+        end_data=args.end_data, 
+        min_results=args.min_results,
+        max_results=args.max_results,
+        node_limit=args.node_limit,
+        direct_edge_limit=args.direct_edge_limit,
+        max_paths=args.max_paths,
+        n_iterations=args.n_iterations,
+        max_articles_per_round=args.max_articles_per_round,
     )
 
-    # Set environment variables to override global defaults
-    if 'disable_pubmed' in kwargs:
-        if kwargs['disable_pubmed']:
-            os.environ['DISABLE_PUBMED'] = 'True'
-        else:
-            os.environ['DISABLE_PUBMED'] = 'False'
-
-    if 'disable_kg' in kwargs:
-        if kwargs['disable_kg']:
-            os.environ['DISABLE_KG'] = 'True'
-        else:
-            os.environ['DISABLE_KG'] = 'False'
-    
-    # Update params with any additional kwargs
-    for key in kwargs:
-        if key in params:
-            params[key] = kwargs[key]
-        elif key not in ['disable_pubmed', 'disable_kg']:
-            print(f"Warning: Unrecognized parameter '{key}' in kwargs. It will be ignored.")
-
-    item = auto_structure_item(topic)
-    disease = item.get("disease", "")
-    core_genes = item.get("core_genes", [])
-    
-    res = run_biodisco_full(disease, core_genes, **params)
-
-    return res['all_hypotheses'][-1]['hypothesis']

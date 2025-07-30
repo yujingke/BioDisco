@@ -2,14 +2,14 @@ import os
 import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import json
 import time
 import re
 from langroid.agent.chat_agent import ChatAgent, ChatAgentConfig
 from langroid.language_models.base import LLMConfig
 from langroid.language_models.openai_gpt import OpenAIGPTConfig
-from .llm_config import gpt4o_mini_config_graph
+from utils.llm_config import PUBMED_AGENT_CONFIG
 
 
 def extract_json_from_response(text):
@@ -53,7 +53,7 @@ class KeywordQueryAgent(ChatAgent):
     # PubMed keyword query strategy agent
     def __init__(self):
         cfg = ChatAgentConfig(
-            llm=ensure_specific_llm_config(clean_llm_config(gpt4o_mini_config_graph)),
+            llm=ensure_specific_llm_config(clean_llm_config(PUBMED_AGENT_CONFIG)),
             system_message=(
                 "You are an expert biomedical PubMed search strategist.\n"
                 "Task: Given a list of biomedical keywords, organize them into synonym groups (OR within each),\n"
@@ -93,7 +93,7 @@ class HypothesisQueryAgent(ChatAgent):
     # PubMed query agent for hypothesis with feedback
     def __init__(self):
         cfg = ChatAgentConfig(
-            llm=ensure_specific_llm_config(clean_llm_config(gpt4o_mini_config_graph)),
+            llm=ensure_specific_llm_config(clean_llm_config(PUBMED_AGENT_CONFIG)),
             system_message=(
                 "You are an expert biomedical PubMed search strategist.\n"
                 "Task: Given a research hypothesis, its low-score feedback, and related keywords,\n"
@@ -148,7 +148,7 @@ def build_pubmed_query(
     group_logic: str = "AND",
     field_pref: str = "MeSH/TIAB",
     start_date: str = "2018/01/01",
-    end_date: str = None
+    end_date: Optional[str] = None
 ) -> str:
     # Build PubMed query string from groups and logic
     if end_date is None:
@@ -178,37 +178,61 @@ def build_pubmed_query(
     query += ' AND "journal article"[pt]'
     return query
 
-def pubmed_search(query: str, retmax: int = 20, api_key: str = None, sort: str = "relevance"):
+def pubmed_search(query: str, retmax: int = 20, api_key: Optional[str] = None, sort: str = "relevance"):
     # PubMed search and fetch results using NCBI API
+    import os
     search_url = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi'
     params = {'db':'pubmed','term':query,'retmax':retmax,'retmode':'json','sort':sort}
     key = api_key or os.getenv("PUBMED_API_KEY")
     if key: params['api_key'] = key
     resp = _safe_get(search_url, params)
-    ids = resp.json().get('esearchresult',{}).get('idlist',[])
+    if resp is None:
+        return []
+    ids = resp.json().get('esearchresult', {}).get('idlist', [])
     if not ids: return []
     efetch_url = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi'
     efparams = {'db':'pubmed','id':','.join(ids),'retmode':'xml'}
     if key: efparams['api_key'] = key
-    root = ET.fromstring(_safe_get(efetch_url, efparams).content)
+    efetch_resp = _safe_get(efetch_url, efparams)
+    if efetch_resp is None:
+        return []
+    content = efetch_resp.content
+    root = ET.fromstring(content)
     arts = []
     for art in root.findall('PubmedArticle'):
         med = art.find('MedlineCitation')
-        art_el = med.find('Article')
-        title = art_el.findtext('ArticleTitle') or ""
-        abs_el = art_el.find('Abstract')
-        abstract = " ".join(e.text for e in abs_el.findall('AbstractText') if e.text) if abs_el is not None else ""
-        pub_date = med.findtext('DateCompleted/Year') or art_el.findtext('Journal/JournalIssue/PubDate/Year',"Unknown")
-        pid = med.findtext('PMID') or "Unknown"
-        arts.append({'id':pid,'title':title,'abstract':abstract,'pub_date':pub_date,'url':f"https://pubmed.ncbi.nlm.nih.gov/{pid}/"})
+        art_el = med.find('Article') if med is not None else None
+        title = art_el.findtext('ArticleTitle') if art_el is not None else ""
+        abs_el = art_el.find('Abstract') if art_el is not None else None
+        abstract = (
+            " ".join(e.text for e in abs_el.findall('AbstractText') if e.text)
+            if abs_el is not None else ""
+        )
+        # pub_date优先找DateCompleted/Year，再找Journal/JournalIssue/PubDate/Year，否则Unknown
+        pub_date = (
+            med.findtext('DateCompleted/Year') if med is not None else None
+        )
+        if not pub_date and art_el is not None:
+            pub_date = art_el.findtext('Journal/JournalIssue/PubDate/Year') or "Unknown"
+        if not pub_date:
+            pub_date = "Unknown"
+        pid = med.findtext('PMID') if med is not None else "Unknown"
+        arts.append({
+            'id': pid,
+            'title': title,
+            'abstract': abstract,
+            'pub_date': pub_date,
+            'url': f"https://pubmed.ncbi.nlm.nih.gov/{pid}/"
+        })
     return arts
+
 
 def adaptive_pubmed_search(
     strategy: Dict[str,Any],
     field_pref: str = "MeSH/TIAB",
     start_date: str = "2018/01/01",
-    end_date: str = None,
-    api_key: str = None,
+    end_date: Optional[str] = None,
+    api_key: Optional[str] = None,
     min_results: int = 3,
     max_results: int = 10,
     retmax_per_query: int = 20
@@ -265,3 +289,28 @@ def adaptive_pubmed_search(
     else:
         status = f"Success: {len(final_articles)} unique articles"
     return final_articles[:max_results], strategy.get("groups", []), status
+
+# Usage example
+if __name__ == "__main__":
+    kw_content = "depression, depressive symptoms, hypophosphatemia, rickets, ERK1/2 signaling, VEGFR2, Cof1-5 mutation, fibroblast diversity"
+    agent = KeywordQueryAgent()
+    strat = agent.get_strategy(kw_content)
+    print("Strategy:", json.dumps(strat, indent=2, ensure_ascii=False))
+    arts, groups, status = adaptive_pubmed_search(strat)
+    print("Status:", status, "Returned:", len(arts))
+    for art in arts:
+        print(f"{art['pub_date']}: {art['title']} - {art['url']}")
+
+    print("\n--- Hypothesis-driven ---\n")
+    hyp = (
+        "Hypothesis: ERK1/2 signaling mediates the effect of hypophosphatemia on depression risk.\n"
+        "Feedback: Mechanistic link unclear for 'Cof1-5 mutation'.\n"
+        "Keywords: depression, ERK1/2 signaling, hypophosphatemia, Cof1-5 mutation, fibroblast diversity"
+    )
+    agent2 = HypothesisQueryAgent()
+    strat2 = agent2.get_strategy(hyp)
+    print("Strategy:", json.dumps(strat2, indent=2, ensure_ascii=False))
+    arts2, groups2, status2 = adaptive_pubmed_search(strat2)
+    print("Status:", status2, "Returned:", len(arts2))
+    for art in arts2:
+        print(f"{art['pub_date']}: {art['title']} - {art['url']}")
