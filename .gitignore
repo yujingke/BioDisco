@@ -21,7 +21,7 @@ build/
 env*
 logs/
 info
-test_neo4j.py
+test_*.py
 basic_usage.py
 hypothesis_pipeline.ipynb
 main.ipynb

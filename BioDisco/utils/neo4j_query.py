@@ -65,18 +65,26 @@ def init_embeddings(
     names_path: str = None,
     model_name: str = "kamalkraj/BioSimCSE-BioLinkBERT-BASE"
 ):
-    if index_path is None:
-        # Get the directory where this file is located
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        # Go up to BioDisco package root, then to kg folder
-        package_root = os.path.dirname(current_dir)
-        # Go up to BioDisco package root, then to kg folder
-        index_path = os.path.join(package_root, "kg", "node_index.faiss")
+    # if index_path is None:
+    #     # Get the directory where this file is located
+    #     current_dir = os.path.dirname(os.path.abspath(__file__))
+    #     # Go up to BioDisco package root, then to kg folder
+    #     package_root = os.path.dirname(current_dir)
+    #     # Go up to BioDisco package root, then to kg folder
+    #     index_path = os.path.join(package_root, "kg", "node_index.faiss")
     
-    if names_path is None:
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        package_root = os.path.dirname(current_dir)
-        names_path = os.path.join(package_root, "kg", "node_names.pkl")
+    # if names_path is None:
+    #     current_dir = os.path.dirname(os.path.abspath(__file__))
+    #     package_root = os.path.dirname(current_dir)
+    #     names_path = os.path.join(package_root, "kg", "node_names.pkl")
+
+    ## load path from environment variable if set
+    kg_path = os.getenv("KG_PATH", None)
+    if kg_path:
+        index_path = os.path.join(kg_path, "node_index.faiss")
+        names_path = os.path.join(kg_path, "node_names.pkl")
+    else:
+        raise Exception("KG_PATH environment variable not set! Please set it to the path containing node_index.faiss and node_names.pkl")
 
     # Initialize FAISS index, node names, and embedding model
     global _NODE_NAMES, _FAISS_INDEX, _ST_MODEL

@@ -110,6 +110,12 @@ export KG_PATH=/path/to/your/kg_specific_files
 neo4j-admin database import full --nodes nodes.csv --relationships edges.csv --overwrite-destination
 ```
 
+#### Start Neo4j
+
+```bash
+neo4j start
+```
+
 #### Turn on PubMed and KG Integration
 
 ```python
