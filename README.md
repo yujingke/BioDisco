@@ -50,7 +50,6 @@ OPENAI_API_KEY=your_openai_api_key_here
 ### Development Installation
 
 ```bash
-## not revealing username for anonymizing
 git clone https://github.com/yujingke/BioDisco.git
 cd BioDisco
 pip install -e .
@@ -236,12 +235,12 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+<!-- ## 🙏 Acknowledgments
 
 - OpenAI for providing the foundation AI models
 - Neo4j for graph database technology
 - PubMed/NCBI for biomedical literature access
-- The scientific community for open data and collaboration
+- The scientific community for open data and collaboration -->
 
 <!-- ## 📧 Contact
 
@@ -249,11 +248,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Email**: contact@biodisco.ai
 - **Issues**: [GitHub Issues](https://github.com/yourusername/BioDisco/issues) -->
 
-## 🔄 Version History
+<!-- ## 🔄 Version History
 
 - **v0.1.0**: Initial release with core functionality
   - Basic library system for data management
   - AI agent framework
   - Neo4j and PubMed integration
-  - Hypothesis generation and evidence collection
+  - Hypothesis generation and evidence collection -->
 
