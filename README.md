@@ -2,7 +2,7 @@
 
 **AI-powered Biomedical Discovery Agent System**
 
-BioDisco is a comprehensive framework for scientific hypothesis generation and biomedical literature mining using AI agents and knowledge graphs. It leverages multiple AI agents to automatically discover patterns, generate hypotheses, and gather supporting evidence from biomedical literature and knowledge databases.
+BioDisco is a comprehensive framework for scientific hypothesis generation and biomedical literature and knowledge graph mining using AI agents. It leverages multiple AI agents to automatically discover patterns, generate hypotheses, and gather supporting evidence from biomedical literature and knowledge databases.
 
 ## 🌟 Features
 
@@ -11,8 +11,7 @@ BioDisco is a comprehensive framework for scientific hypothesis generation and b
 - **Literature Mining**: Intelligent PubMed search and literature analysis
 - **Knowledge Graph Integration**: Neo4j-based knowledge graph for storing and querying biomedical entities
 - **Evidence Collection**: Systematic gathering and linking of supporting evidence
-- **Deduplication**: Smart content deduplication across all data types
-- **Extensible Architecture**: Modular design for easy extension and customization
+- **Simple Python Interface**: Easy-to-use API for scientific discovery
 
 ## 🚀 Quick Start
 
@@ -22,74 +21,115 @@ BioDisco is a comprehensive framework for scientific hypothesis generation and b
 pip install biodisco
 ```
 
+### Basic Usage
+
+BioDisco provides a simple interface for biomedical discovery
+
+```python
+import BioDisco
+
+# Simple disease-based discovery
+results = BioDisco.generate("Role of GPR153 in vascular injury and disease")
+
+```
+
+**You need to setup your Open AI API key as a environment variable `OPENAI_API_KEY`**
+
+On your terminal 
+```bash
+export OPENAI_API_KEY=your_openai_api_key_here
+````
+
+or create a `.env` file in your project directory (check `.env.example`)
+```bash
+# OpenAI API Configuration
+OPENAI_API_KEY=your_openai_api_key_here
+```
+
+
 ### Development Installation
 
 ```bash
+## not revealing username for anonymizing
 git clone https://github.com/yourusername/BioDisco.git
 cd BioDisco
 pip install -e .
 ```
 
-### Basic Usage
+## 🔧 PubMed and Knowledge Graph Integration
+
+By default PubMed and Knowledge Graph Integration is off. Follow the steps to setup knowledge integration.
+
+### PubMed Setup
+
+You can setup an an environment variable `DISABLE_PUBMED=False` in your `.env` file or using `export` command
+
+**or**
+
+Just pass an argument to the generate function
 
 ```python
-from BioDisco import HypothesisLibrary, LiteratureLibrary, KGLibrary
-
-# Initialize libraries
-hypo_lib = HypothesisLibrary()
-lit_lib = LiteratureLibrary()
-kg_lib = KGLibrary()
-
-# Add a hypothesis
-hypothesis_id = hypo_lib.add("BRCA1 mutations increase susceptibility to DNA damage")
-
-# Add literature evidence
-literature_id = lit_lib.add({
-    "pmid": "12345678",
-    "title": "BRCA1 and DNA Repair",
-    "abstract": "Study showing BRCA1's role in DNA repair mechanisms..."
-})
-
-# Add knowledge graph entities
-node_id = kg_lib.add_node({
-    "entity_id": "BRCA1_gene",
-    "name": "BRCA1",
-    "type": "Gene"
-})
+## Turn on PubMed Integration
+results = BioDisco.generate("Role of GPR153 in vascular injury and disease", disable_pubmed=False)
 ```
 
-## 📋 Prerequisites
+### Neo4j Setup
 
-- Python 3.8+
-- Neo4j database (for knowledge graph functionality)
-- OpenAI API key (for AI agent functionality)
+#### 1. Install Neo4j server 
 
-### Environment Setup
+First you need to install Neo4j server. Follow the instuctions [here](https://neo4j.com/docs/operations-manual/current/installation/) to install Neo4j for your OS
 
-1. **Neo4j Setup**:
-   ```bash
-   # Install Neo4j and start the service
-   # Default credentials: neo4j/password
-   ```
+#### 2. Add Neo4j login details to as enviroment variable
 
-2. **Environment Variables**:
-   ```bash
-   export OPENAI_API_KEY="your-openai-api-key"
-   export NEO4J_URI="bolt://localhost:7687"
-   export NEO4J_USER="neo4j"
-   export NEO4J_PASSWORD="your-password"
-   ```
+```bash
+export NEO4J_URI=bolt://localhost:7687
+export NEO4J_USER=neo4j
+export NEO4J_PASSWORD=your_neo4j_password
+```
+or set these `.env` file (check `.env.example`)
 
-## 🏗️ Architecture
+#### 3. Download and Setup PrimeKG
+
+- Download PrimeKG 
+```bash
+wget -O kg.csv https://dataverse.harvard.edu/api/access/datafile/6180620
+```
+
+- run `split_nodes_edges.py` (should be in the same location as `kg.csv`) to create `nodes.csv` and `edges.csv`
+
+- run `build_kg_index.py` (should be in the same location as `nodes.csv`)
+
+- add location of files as environment variable `KG_PATH`  (check `.env.example`)
+```bash
+export KG_PATH=/path/to/your/kg_specific_files
+```
+
+#### Import PrimeKG to Neo4j
+
+```bash
+neo4j-admin database import full --nodes nodes.csv --relationships edges.csv --overwrite-destination
+```
+
+#### Start Neo4j
+
+```bash
+neo4j start
+```
+
+#### Turn on PubMed and KG Integration
+
+```python
+results = BioDisco.generate("Role of GPR153 in vascular injury and disease", disable_pubmed=False, disable_kg=False)
+```
+
+**or**
+
+setup environment variable `DISABLE_KG=False` (check `.env.example`)
+
+<!-- ## 🏗️ Architecture
 
 BioDisco consists of several core components:
 
-### Core Libraries
-- **BaseLibrary**: Foundation class for all data storage with UUID-based identification
-- **HypothesisLibrary**: Storage and deduplication of scientific hypotheses
-- **LiteratureLibrary**: PubMed literature management with PMID-based deduplication
-- **KGLibrary**: Knowledge graph nodes and edges with relationship tracking
-- **EvidenceLibrary**: Links between hypotheses and supporting evidence
 
 ### AI Agents
 - **KeywordExtractorAgent**: Extracts relevant keywords from text
@@ -100,157 +140,89 @@ BioDisco consists of several core components:
 ### Data Integration
 - **Neo4j Integration**: Graph database for complex biomedical relationships
 - **PubMed API**: Automated literature search and retrieval
-- **Embedding Models**: Semantic similarity and search capabilities
+- **Embedding Models**: Semantic similarity and search capabilities -->
 
 ## 📖 Detailed Usage
 
-### Working with Hypotheses
+### Setting number of iterations and PubMed cutoff
 
 ```python
-from BioDisco import HypothesisLibrary, EvidenceLibrary
+import BioDisco
 
-# Create hypothesis library
-hypo_lib = HypothesisLibrary()
-
-# Add hypotheses (automatic deduplication)
-h1 = hypo_lib.add("Vitamin D deficiency increases COVID-19 severity")
-h2 = hypo_lib.add("Vitamin D deficiency increases COVID-19 severity")  # Same as h1
-assert h1 == h2  # Returns same ID for duplicate content
-
-# Get hypothesis
-hypothesis_text = hypo_lib.get(h1)
-print(hypothesis_text)
+results = BioDisco.generate("Role of GPR153 in vascular injury and disease", disable_pubmed=False, disable_kg=False, n_iterations=3, start_year=2020)
 ```
 
-### Literature Management
 
-```python
-from BioDisco import LiteratureLibrary
-
-lit_lib = LiteratureLibrary()
-
-# Add literature with automatic PMID-based deduplication
-paper = {
-    "pmid": "33234567",
-    "title": "COVID-19 and Vitamin D: A Systematic Review",
-    "abstract": "This systematic review examines...",
-    "authors": ["Smith, J.", "Doe, A."],
-    "journal": "Nature Medicine",
-    "year": 2021
-}
-
-lit_id = lit_lib.add(paper)
-retrieved_paper = lit_lib.get(lit_id)
-```
-
-### Knowledge Graph Operations
-
-```python
-from BioDisco import KGLibrary
-
-kg_lib = KGLibrary()
-
-# Add nodes
-gene_id = kg_lib.add_node({
-    "entity_id": "VDR_gene",
-    "name": "Vitamin D Receptor",
-    "type": "Gene",
-    "synonyms": ["VDR", "NR1I1"]
-})
-
-disease_id = kg_lib.add_node({
-    "entity_id": "COVID19_disease",
-    "name": "COVID-19",
-    "type": "Disease",
-    "synonyms": ["SARS-CoV-2 infection"]
-})
-
-# Add edges (relationships)
-edge_id = kg_lib.add_edge({
-    "source": "VDR_gene",
-    "target": "COVID19_disease", 
-    "relation": "associated_with",
-    "evidence_strength": 0.8
-})
-
-# Retrieve all nodes and edges
-all_nodes = kg_lib.all_nodes()
-all_edges = kg_lib.all_edges()
-```
-
-### Evidence Linking
-
-```python
-from BioDisco import EvidenceLibrary
-
-evidence_lib = EvidenceLibrary()
-
-# Link hypothesis with supporting evidence
-evidence_id = evidence_lib.add(
-    hypothesis_id=h1,
-    literature_ids=[lit_id],
-    kg_node_ids=[gene_id, disease_id],
-    kg_edge_ids=[edge_id],
-    prev_hypothesis_ids=[]  # Can reference previous hypotheses
-)
-```
-
-## 🔧 Configuration
-
-### LLM Configuration
-
-```python
-from BioDisco.llm_config import gpt4o_mini_config
-
-# Customize AI model settings
-custom_config = {
-    "chat_model": "gpt-4o-mini",
-    "temperature": 0.7,
-    "max_output_tokens": 1500,
-    "timeout": 300000
-}
-```
-
-### Neo4j Configuration
-
-```python
-from BioDisco.neo4j_query import Neo4jGraph
-
-# Initialize with custom settings
-neo4j_graph = Neo4jGraph(
-    uri="bolt://localhost:7687",
-    user="neo4j",
-    password="your-password"
-)
-```
-
-## 📚 Examples
+<!-- ## 📚 Examples
 
 Check out the `/examples` directory for comprehensive examples:
 
 - `basic_usage.py`: Getting started with core functionality
 - `hypothesis_pipeline.ipynb`: Full hypothesis generation pipeline
 - `literature_analysis.ipynb`: Advanced literature mining techniques
-- `knowledge_graph_demo.ipynb`: Working with biomedical knowledge graphs
+- `knowledge_graph_demo.ipynb`: Working with biomedical knowledge graphs -->
 
-## 🧪 Testing
 
-```bash
-# Install development dependencies
-pip install -e ".[dev]"
-
-# Run tests
-pytest
-
-# Run with coverage
-pytest --cov=BioDisco --cov-report=html
-```
-
-## 📖 Documentation
+<!-- ## 📖 Documentation
 
 Full documentation is available at: [https://biodisco.readthedocs.io/](https://biodisco.readthedocs.io/)
 
-## 🤝 Contributing
+```
+
+## 📚 API Reference
+
+### Main Interface
+
+#### `BioDisco.generate(input_data, **kwargs)`
+
+The primary interface for biomedical discovery.
+
+**Parameters:**
+- `input_data` (str or dict): Disease name or structured input
+- `genes` (list, optional): List of gene names 
+- `background` (str, optional): Background research context
+- `start_year` (int, optional): Earliest publication year (default: 2019)
+- `min_results` (int, optional): Minimum search results (default: 3)
+- `max_results` (int, optional): Maximum search results (default: 10)
+- `n_iterations` (int, optional): Number of discovery iterations (default: 3)
+- `max_articles_per_round` (int, optional): Articles per iteration (default: 10)
+- `node_limit` (int, optional): Knowledge graph node limit (default: 50)
+- `direct_edge_limit` (int, optional): Knowledge graph edge limit (default: 30)
+
+**Returns:**
+- `dict`: Discovery results with hypotheses, evidence, and analysis
+
+**Examples:**
+```python
+# Simple usage
+results = BioDisco.generate("diabetes")
+
+# With genes
+results = BioDisco.generate("cancer", genes=["BRCA1", "BRCA2"])
+
+# Structured input
+results = BioDisco.generate({
+    "disease": "Alzheimer's", 
+    "genes": ["APP", "PSEN1"],
+    "background": "Amyloid cascade hypothesis"
+})
+
+# Custom parameters
+results = BioDisco.generate(
+    "multiple sclerosis",
+    n_iterations=5,
+    max_results=20,
+    start_year=2020
+)
+```
+
+### Advanced Functions
+
+- `run_biodisco_full(disease, core_genes, **params)`: Full pipeline with background generation
+- `run_full_pipeline(background, **params)`: Evidence-focused pipeline
+- `run_background_only(disease, core_genes, **params)`: Generate research background only -->
+
+<!-- ## 🤝 Contributing
 
 We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
 
@@ -258,7 +230,7 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+5. Open a Pull Request -->
 
 ## 📄 License
 
@@ -271,11 +243,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - PubMed/NCBI for biomedical literature access
 - The scientific community for open data and collaboration
 
-## 📧 Contact
+<!-- ## 📧 Contact
 
 - **Team**: BioDisco Team
 - **Email**: contact@biodisco.ai
-- **Issues**: [GitHub Issues](https://github.com/yourusername/BioDisco/issues)
+- **Issues**: [GitHub Issues](https://github.com/yourusername/BioDisco/issues) -->
 
 ## 🔄 Version History
 
@@ -285,6 +257,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
   - Neo4j and PubMed integration
   - Hypothesis generation and evidence collection
 
----
-
-**Made with ❤️ for the scientific community**

@@ -9,7 +9,7 @@ import re
 from langroid.agent.chat_agent import ChatAgent, ChatAgentConfig
 from langroid.language_models.base import LLMConfig
 from langroid.language_models.openai_gpt import OpenAIGPTConfig
-from utils.llm_config import gpt4o_mini_config_graph
+from .llm_config import gpt4o_mini_config_graph
 
 
 def extract_json_from_response(text):
@@ -265,28 +265,3 @@ def adaptive_pubmed_search(
     else:
         status = f"Success: {len(final_articles)} unique articles"
     return final_articles[:max_results], strategy.get("groups", []), status
-
-# Usage example
-if __name__ == "__main__":
-    kw_content = "depression, depressive symptoms, hypophosphatemia, rickets, ERK1/2 signaling, VEGFR2, Cof1-5 mutation, fibroblast diversity"
-    agent = KeywordQueryAgent()
-    strat = agent.get_strategy(kw_content)
-    print("Strategy:", json.dumps(strat, indent=2, ensure_ascii=False))
-    arts, groups, status = adaptive_pubmed_search(strat)
-    print("Status:", status, "Returned:", len(arts))
-    for art in arts:
-        print(f"{art['pub_date']}: {art['title']} - {art['url']}")
-
-    print("\n--- Hypothesis-driven ---\n")
-    hyp = (
-        "Hypothesis: ERK1/2 signaling mediates the effect of hypophosphatemia on depression risk.\n"
-        "Feedback: Mechanistic link unclear for 'Cof1-5 mutation'.\n"
-        "Keywords: depression, ERK1/2 signaling, hypophosphatemia, Cof1-5 mutation, fibroblast diversity"
-    )
-    agent2 = HypothesisQueryAgent()
-    strat2 = agent2.get_strategy(hyp)
-    print("Strategy:", json.dumps(strat2, indent=2, ensure_ascii=False))
-    arts2, groups2, status2 = adaptive_pubmed_search(strat2)
-    print("Status:", status2, "Returned:", len(arts2))
-    for art in arts2:
-        print(f"{art['pub_date']}: {art['title']} - {art['url']}")
