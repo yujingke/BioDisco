@@ -21,7 +21,7 @@ requirements = read_requirements('requirements.txt')
 
 setup(
     name="biodisco",
-    version="0.1.1",
+    version="0.1.0",
     author="BioDisco Team",
     # author_email="contact@biodisco.ai",
     description="AI-powered Biomedical Discovery Agent System",
@@ -32,8 +32,6 @@ setup(
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Science/Research",
-        "Topic :: Scientific/Engineering :: Bioinformatics",
-        "Topic :: Scientific/Engineering :: Artificial Intelligence",
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3.11",
     ],
