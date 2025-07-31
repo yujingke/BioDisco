@@ -160,9 +160,7 @@ class FilterKeywordsAgent(ChatAgent):
         except Exception:
             return []
 
-############################################################
 # Domain configuration for KG querying
-############################################################
 DOMAIN_SET = {
     "molecular": {
         "node_types": ["gene/protein","molecular_function","biological_process","cellular_component"],
@@ -211,9 +209,7 @@ DOMAIN_SET = {
     }
 }
 
-############################################################
 # Keyword cleaning and splitting
-############################################################
 def clean_and_split_keywords(raw_keywords: List[str]) -> List[str]:
     # Clean and split keywords into atomic components
     LOG(f"Original keywords: {raw_keywords}")
@@ -248,9 +244,7 @@ def clean_and_split_keywords(raw_keywords: List[str]) -> List[str]:
     LOG(f"Cleaned keywords: {final}")
     return final
 
-############################################################
 # Helper functions
-############################################################
 def simulate_embedding(text: str) -> List[float]:
     # Simulate a vector embedding for testing
     vec=[0.0]*3
@@ -283,9 +277,7 @@ def build_json_output(nodes, direct_edges, multi_edges, query_keywords, domain):
     return {"core_keywords":query_keywords,"domain":domain,"nodes":json_nodes,
             "direct_edges":json_direct,"multihop_paths":multi_edges}
 
-############################################################
 # Neo4jGraph class for KG access
-############################################################
 class Neo4jGraph:
     def __init__(self, uri:str, user:str, password:str):
         # Initialize Neo4j driver

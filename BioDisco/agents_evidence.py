@@ -12,7 +12,7 @@ from transformers.pipelines import pipeline
 import random
 from datetime import datetime, timedelta
 from pathlib import Path
-sys.path.insert(0, r"D:\DFKI\SciAgentsDiscovery-openai\SciAgentsDiscovery-main")
+
 from utils.log_utils import write_agent_log
 from utils.llm_config import (
     KEYWORD_CONFIG,
@@ -61,7 +61,7 @@ def get_neo4j_graph():
     
     return neo4j_graph
 
-
+ 
 # Parse hypotheses and evidence from raw output
 def parse_hypos(raw: str):
     pattern = re.compile(r'([^\n]+?)\s*EVIDENCE:([^\n]+)')
@@ -343,8 +343,7 @@ def call_pubmed_search_core(
         "used_groups": used_groups
     }
 
-# 2. 切换开关函数
-# DISABLE_PUBMED = False
+
 def call_pubmed_search(*args, **kwargs):
     DISABLE_PUBMED = os.getenv("DISABLE_PUBMED", "true").lower() in {"true"}
     print('disable_pubmed:', DISABLE_PUBMED)
@@ -543,7 +542,7 @@ class ScientistAgent(ChatAgent):
 
 # PubmedAgent: search PubMed for relevant articles
 class PubmedAgent(ChatAgent):
-    def __init__(self, min_results=1, max_results=4):
+    def __init__(self, min_results=1, max_results=4, start_date=None, end_date=None):
         cfg = ChatAgentConfig(
             llm=ensure_specific_llm_config(clean_llm_config(PUBMED_AGENT_CONFIG)),
             system_message="You are a PubMed search assistant."
@@ -551,24 +550,30 @@ class PubmedAgent(ChatAgent):
         cfg.name = "PubmedAgent"
         self.min_results = min_results
         self.max_results = max_results
+        self.start_date = start_date
+        self.end_date = end_date
         super().__init__(cfg)
-
     def step(self, keywords: List[str], hypothesis: Optional[str] = None, feedback: Optional[str] = None,
-             min_results=None, max_results=None, **kwargs) -> str:
+             min_results=None, max_results=None, start_date=None, end_date=None, **kwargs) -> str:
         min_results = min_results if min_results is not None else self.min_results
         max_results = max_results if max_results is not None else self.max_results
+        start_date = start_date if start_date is not None else self.start_date
+        end_date = end_date if end_date is not None else self.end_date
         res = call_pubmed_search(
             keywords=keywords,
             hypothesis=hypothesis,
             feedback=feedback,
             min_results=min_results,
-            max_results=max_results
+            max_results=max_results,
+            start_date=start_date,
+            end_date=end_date
         )
         articles = res["articles"]
         if not articles:
             return "[PubMed] No sufficient relevant articles found."
         out_blocks = [json.dumps(a, ensure_ascii=False) for a in articles]
         return "\n".join(out_blocks)
+
 
 # CriticAgent: evaluate hypothesis by 4 metrics, output scores and rationales
 class CriticAgent(ChatAgent):
@@ -613,7 +618,7 @@ class CriticAgent(ChatAgent):
 
 # RevisionAgent: suggest evidence source and KG settings for low metrics
 class RevisionAgent(ChatAgent):
-    def __init__(self, pubmed_min_results=2, pubmed_max_results=5):
+    def __init__(self, pubmed_min_results=2, pubmed_max_results=5, start_date=None, end_date=None):
         system_message = (
             "RevisionAgent:\n"
             "Task: You receive:\n"
@@ -666,7 +671,9 @@ class RevisionAgent(ChatAgent):
         domain: str,
         background: str,
         direct_edge_limit: int = 30,
-        node_limit: int = 30
+        node_limit: int = 30,
+        start_date: str = None,
+        end_date: str = None
     ) -> Tuple[
         List[str],
         List[Tuple[str, str]],
@@ -756,6 +763,8 @@ class RevisionAgent(ChatAgent):
                 kg_dyn
             )
             info_bundle.append(("neo4j", kg_dyn))
+        start_date = start_date if start_date is not None else self.start_date
+        end_date = end_date if end_date is not None else self.end_date
         if "pubmed" in actions:
             res = call_pubmed_search(
                 keywords=kws,
@@ -764,6 +773,8 @@ class RevisionAgent(ChatAgent):
                 min_results=self.pubmed_min_results,
                 max_results=self.pubmed_max_results,
                 background=new_background,
+                start_date=start_date,
+                end_date=end_date,
             )
             write_agent_log(
                 "Re_PubmedAgent",
@@ -858,7 +869,9 @@ def run_full_pipeline(
     node_limit: int = 30,
     pubmed_min_results: int = 1,
     pubmed_max_results: int = 4,
-    record_dir: str = r"D:\DFKI\SciAgentsDiscovery-openai\run_records"
+    record_dir: str = 'logs',
+    start_date: str = "2019/01/01",
+    end_date: str = "2025/12/31"
 ):
     import os, json
     RECORD_DIR = record_dir
@@ -877,9 +890,19 @@ def run_full_pipeline(
     bg_text = background
 
     kg_agent = KGAgent()
-    pubmed_agent = PubmedAgent(min_results=pubmed_min_results, max_results=pubmed_max_results)
+    pubmed_agent = PubmedAgent(
+    min_results=pubmed_min_results, 
+    max_results=pubmed_max_results,
+    start_date=start_date,
+    end_date=end_date
+    )
     critic = CriticAgent()
-    revision = RevisionAgent(pubmed_min_results=pubmed_min_results, pubmed_max_results=pubmed_max_results)
+    revision = RevisionAgent(
+    pubmed_min_results=pubmed_min_results, 
+    pubmed_max_results=pubmed_max_results,
+    start_date=start_date,
+    end_date=end_date
+    )
     refine_agent = RefineAgent()
 
     domain = DomainSelectorAgent().step(background)
@@ -959,6 +982,8 @@ def run_full_pipeline(
                 fb, curr_txt, domain, background,
                 direct_edge_limit=direct_edge_limit,
                 node_limit=node_limit,
+                start_date=start_date,
+                end_date=end_date
             )
             write_agent_log("RevisionAgent", {"feedback": fb, "hypothesis": curr_txt, "domain": domain, "background": background},
                 {"actions": actions, "info": info, "metrics_texts": metrics_texts})

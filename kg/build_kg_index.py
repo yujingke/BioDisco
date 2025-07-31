@@ -25,7 +25,7 @@ embs_norm = embs / (norms + 1e-8)
 
 dim = embs_norm.shape[1]
 index = faiss.IndexFlatIP(dim)
-index.add(embs_norm.astype("float32"))
+index.add(embs_norm.astype("float32")) # type: ignore
 print(f"Built FAISS index (dim={dim}, n={embs_norm.shape[0]})")
 
 faiss.write_index(index, index_path)

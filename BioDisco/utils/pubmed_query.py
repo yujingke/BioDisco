@@ -11,21 +11,55 @@ from langroid.language_models.base import LLMConfig
 from langroid.language_models.openai_gpt import OpenAIGPTConfig
 from utils.llm_config import PUBMED_AGENT_CONFIG
 
+def parse_pubdate(journal_issue):
+    year = journal_issue.findtext('Year')
+    month = journal_issue.findtext('Month')
+    day = journal_issue.findtext('Day')
+    month_map = {'Jan':'01','Feb':'02','Mar':'03','Apr':'04','May':'05','Jun':'06',
+                 'Jul':'07','Aug':'08','Sep':'09','Oct':'10','Nov':'11','Dec':'12'}
+    if month and month in month_map:
+        month = month_map[month]
+    elif month and month.isdigit():
+        month = month.zfill(2)
+    else:
+        month = '01'
+    if not day or not day.isdigit():
+        day = '01'
+    if year:
+        return f"{year}-{month}-{day}"
+    return "Unknown"
+
+def filter_articles_by_date(articles, start_date, end_date):
+    from datetime import datetime
+    try:
+        start = datetime.strptime(start_date, "%Y/%m/%d")
+        end = datetime.strptime(end_date, "%Y/%m/%d")
+    except Exception:
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+    def in_range(a):
+        pub_date = a.get('pub_date', '')
+        if len(pub_date) == 4:
+            pub_date = f"{pub_date}-01-01"
+        for fmt in ("%Y-%m-%d", "%Y/%m/%d"):
+            try:
+                d = datetime.strptime(pub_date[:10], fmt)
+                return start <= d <= end
+            except Exception:
+                continue
+        return False
+    return [a for a in articles if in_range(a)]
 
 def extract_json_from_response(text):
-    """从LLM输出中自动提取纯JSON对象"""
     if text is None:
         raise ValueError("No LLM output to extract JSON from.")
     text = text.strip()
     if text.startswith("```"):
-        # 去掉markdown代码块包裹
         text = re.sub(r'^```[a-zA-Z]*\n?', '', text)
         text = re.sub(r'\n?```$', '', text)
-    # 查找首个{...}
     matches = re.findall(r'\{[\s\S]*\}', text)
     if matches:
         return json.loads(matches[0])
-    # fallback: 尝试直接parse
     return json.loads(text)
 
 def clean_llm_config(llm_config):
@@ -79,8 +113,6 @@ class KeywordQueryAgent(ChatAgent):
         # Get query strategy from LLM
         prompt = f"{self.config.system_message}\n\nKEYWORDS:\n{keywords}\n\nQUERY_STRATEGY:"
         resp = self.llm_response(prompt)
-        # print("[DEBUG] LLM output:", resp)
-        # print("[DEBUG] LLM output content:", getattr(resp, "content", None))
         if not resp or not getattr(resp, "content", None):
             raise RuntimeError("LLM did not return a response.")
         strat = extract_json_from_response(getattr(resp, "content", ""))
@@ -201,13 +233,21 @@ def pubmed_search(query: str, retmax: int = 20, api_key: Optional[str] = None, s
     arts = []
     for art in root.findall('PubmedArticle'):
         med = art.find('MedlineCitation')
-        art_el = med.find('Article') # type: ignore
-        title = art_el.findtext('ArticleTitle') or "" # type: ignore
-        abs_el = art_el.find('Abstract') # type: ignore
+        art_el = med.find('Article')
+        title = art_el.findtext('ArticleTitle') or ""
+        abs_el = art_el.find('Abstract')
         abstract = " ".join(e.text for e in abs_el.findall('AbstractText') if e.text) if abs_el is not None else ""
-        pub_date = med.findtext('DateCompleted/Year') or art_el.findtext('Journal/JournalIssue/PubDate/Year',"Unknown") # type: ignore
-        pid = med.findtext('PMID') or "Unknown" # type: ignore
+        pub_date = "Unknown"
+        pubdate_el = art_el.find('Journal/JournalIssue/PubDate')
+        if pubdate_el is not None:
+            pub_date = parse_pubdate(pubdate_el)
+        if pub_date == "Unknown":
+            year = med.findtext('DateCompleted/Year')
+            if year:
+                pub_date = f"{year}-01-01"
+        pid = med.findtext('PMID') or "Unknown"
         arts.append({'id':pid,'title':title,'abstract':abstract,'pub_date':pub_date,'url':f"https://pubmed.ncbi.nlm.nih.gov/{pid}/"})
+
     return arts
 
 
@@ -269,6 +309,7 @@ def adaptive_pubmed_search(
             if h['id'] not in seen_ids:
                 final_articles.append(h)
                 seen_ids.add(h['id'])
+    final_articles = filter_articles_by_date(final_articles, start_date, end_date)
     if len(final_articles) < min_results:
         status = "Too few articles after all attempts"
     else:

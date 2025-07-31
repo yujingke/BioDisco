@@ -19,7 +19,7 @@ from agents_evidence import (
 )
 
 
-# ----------------------------- LLM agent -------------------------------- #
+# LLM agent 
 class BackgroundSummariserAgent(ChatAgent):
     def __init__(self):
         cfg = ChatAgentConfig(
@@ -50,7 +50,6 @@ class BackgroundSummariserAgent(ChatAgent):
         )
         resp = self.llm_response(prompt)
 
-        # 兼容所有情况
         if resp is None:
             background = ""
         elif hasattr(resp, "content"):
@@ -68,13 +67,13 @@ class BackgroundSummariserAgent(ChatAgent):
         return background
 
 
-# -------------------------- Helper functions ---------------------------- #
+# Helper functions
 def build_background_summary(
     disease: str,
     core_genes: Sequence[str],
     related_articles: list | None = None,
     start_date: str = "2019/01/01",
-    end_date: str = "2023/12/31",
+    end_date: str = "2025/12/31",
     retmax: int = 10,
 ) -> str:
     if related_articles is None:
@@ -94,7 +93,7 @@ def run_background_only(
     disease: str,
     core_genes: Sequence[str],
     start_date: str = "2019/01/01",
-    end_date: str = "2023/12/31",
+    end_date: str = "2025/12/31",
     min_results: int = 3,
     max_results: int = 10,
 ):
@@ -136,7 +135,7 @@ def run_biodisco_full(
     disease: str,
     core_genes: Sequence[str],
     start_date: str = "2019/01/01",
-    end_date: str = "2023/12/31",
+    end_date: str = "2025/12/31",
     min_results: int = 3,
     max_results: int = 10,
     node_limit: int = 50,
@@ -169,7 +168,13 @@ def run_biodisco_full(
     all_hypotheses_info = run_full_pipeline(
         background,
         n_iterations=n_iterations,
-        max_lit_per_hypo=max_articles_per_round
+        max_lit_per_hypo=max_articles_per_round,
+        direct_edge_limit=direct_edge_limit,
+        node_limit=node_limit,
+        pubmed_min_results=min_results,    
+        pubmed_max_results=max_results,    
+        start_date=start_date,
+        end_date=end_date
     )
 
     return {
@@ -241,7 +246,7 @@ def generate(topic: str, **kwargs) -> str:
 
     params = dict(
         start_date="2019/01/01",
-        end_date="2023/12/31",
+        end_date="2025/12/31",
         min_results=3,
         max_results=10,
         node_limit=50,
