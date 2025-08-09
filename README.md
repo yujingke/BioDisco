@@ -2,7 +2,7 @@
 
 **AI-powered Biomedical Discovery Agent System**
 
-BioDisco is a comprehensive framework for scientific hypothesis generation and biomedical literature and knowledge graph mining using AI agents. It leverages multiple AI agents to automatically discover patterns, generate hypotheses, and gather supporting evidence from biomedical literature and knowledge databases.
+BioDisco is a comprehensive framework for scientific hypothesis generation and biomedical literature and knowledge graph mining using AI agents. It leverages multiple AI agents to automatically discover patterns, generate hypotheses, and gather supporting evidence from biomedical literature and knowledge databases..
 
 ## 🌟 Features
 

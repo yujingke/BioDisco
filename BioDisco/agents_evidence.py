@@ -6,26 +6,34 @@ from pydantic import BaseModel
 from langroid.language_models.base import LLMConfig
 from langroid.language_models.openai_gpt import OpenAIGPTConfig
 from langroid.agent.chat_agent import ChatAgent, ChatAgentConfig
-from transformers import AutoTokenizer, AutoModelForTokenClassification, pipeline
+from transformers import AutoTokenizer, AutoModelForTokenClassification
+from transformers.pipelines import pipeline
+
 import random
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from .utils.log_utils import write_agent_log
-from .utils.llm_config import (
-    gpt4turbo_mini_config,
-    gpt4turbo_mini_config_graph,
-    gpt4o_mini_config_graph
+from utils.log_utils import write_agent_log
+from utils.llm_config import (
+    KEYWORD_CONFIG,
+    DOMAIN_CONFIG,
+    PLANNER_CONFIG,
+    SCIENTIST_AGENT_CONFIG,
+    PUBMED_AGENT_CONFIG,
+    CRITIC_AGENT_CONFIG,
+    REVISION_AGENT_CONFIG,
+    REFINE_AGENT_CONFIG
 )
-from .utils.neo4j_query import Neo4jGraph, build_readable_kg_context, DOMAIN_CONFIG, FilterKeywordsAgent, clean_and_split_keywords, embed_map_keywords
-from .utils.pubmed_query import (
+from utils.neo4j_query import Neo4jGraph, build_readable_kg_context, DOMAIN_SET,FilterKeywordsAgent,clean_and_split_keywords,embed_map_keywords
+from utils.pubmed_query import (
     KeywordQueryAgent, 
     HypothesisQueryAgent, 
     adaptive_pubmed_search
 )
-from .utils.libraries import HypothesisLibrary
+from utils.libraries import HypothesisLibrary
 
 hypo_lib = HypothesisLibrary()
+
 
 all_kg_nodes_set: set = set()
 all_kg_edges_set: set = set()
@@ -53,12 +61,7 @@ def get_neo4j_graph():
     
     return neo4j_graph
 
-# neo4j_graph = Neo4jGraph(
-#     uri=NEO4J_URI,
-#     user=NEO4J_USER,
-#     password=NEO4J_PASSWORD
-# )
-
+ 
 # Parse hypotheses and evidence from raw output
 def parse_hypos(raw: str):
     pattern = re.compile(r'([^\n]+?)\s*EVIDENCE:([^\n]+)')
@@ -200,7 +203,7 @@ class DomainSelectorAgent(ChatAgent):
 
     def __init__(self):
         cfg = ChatAgentConfig(
-            llm=ensure_specific_llm_config(clean_llm_config(gpt4turbo_mini_config)),
+            llm=ensure_specific_llm_config(clean_llm_config(DOMAIN_CONFIG)),
             system_message=(
                 f"DomainSelectorAgent:\n"
                 f"Task: Identify the most relevant research domain(s) for the given biomedical background text.\n"
@@ -211,8 +214,8 @@ class DomainSelectorAgent(ChatAgent):
         super().__init__(cfg)
         from sentence_transformers import SentenceTransformer
         self.embed_model = SentenceTransformer(self.EMBEDDING_MODEL_NAME)
-        self.domain_keys = list(DOMAIN_CONFIG.keys())
-        descriptions = [DOMAIN_CONFIG[key]["description"] for key in self.domain_keys]
+        self.domain_keys = list(DOMAIN_SET.keys())
+        descriptions = [DOMAIN_SET[key]["description"] for key in self.domain_keys]
         self.domain_embeddings = self.embed_model.encode(
             descriptions, convert_to_tensor=True
         )
@@ -245,7 +248,7 @@ def call_neo4j_subgraph_core(
     background: str,
     keywords: Union[str, List[str]],
     important_rel_types: Optional[List[str]] = None,
-    domain: str = None,
+    domain: Optional[str] = None,
     max_depth_override: Optional[int] = None,
     hypo_id: Optional[str] = None,
     direct_edge_limit: Optional[int] = None,
@@ -264,7 +267,6 @@ def call_neo4j_subgraph_core(
     filtered_kws   = filter_agent.filter(background, candidates)
     if not filtered_kws:
         return json.dumps({"nodes": [], "direct_edges": [], "multihop_paths": []}, ensure_ascii=False)
-    
     graph = get_neo4j_graph()
     summary_str = graph.get_subgraph(
         background=background,
@@ -303,8 +305,8 @@ def call_neo4j_subgraph(*args, **kwargs) -> str:
         return ""
     return call_neo4j_subgraph_core(*args, **kwargs)
 
+
 # PubMed search agent with LLM-based strategy
-# 1. 定义真正的 PubMed 查询函数
 def call_pubmed_search_core(
     keywords: List[str],
     hypothesis: Optional[str] = None,
@@ -312,9 +314,13 @@ def call_pubmed_search_core(
     min_results: int = 1,
     max_results: int = 10,
     background: Optional[str] = None,
+    start_date: Optional[str] = None,
     end_date: Optional[str] = None
 ) -> Dict[str, Any]:
-    # ...（你原来的实现）...
+    if start_date is None:
+        start_date = "2018/01/01"
+    if end_date is None:
+        end_date = datetime.now().strftime("%Y/%m/%d")
     if hypothesis and feedback:
         prompt = f"Hypothesis: {hypothesis}\nLow Score Feedback: {feedback}\nKeywords: {', '.join(keywords)}"
         agent = HypothesisQueryAgent()
@@ -327,6 +333,7 @@ def call_pubmed_search_core(
         field_pref="MeSH/TIAB",
         min_results=min_results,
         max_results=max_results,
+        start_date=start_date, 
         end_date=end_date
     )
     return {
@@ -336,8 +343,6 @@ def call_pubmed_search_core(
         "used_groups": used_groups
     }
 
-# 2. 切换开关函数
-# DISABLE_PUBMED = False
 
 def call_pubmed_search(*args, **kwargs):
     DISABLE_PUBMED = os.getenv("DISABLE_PUBMED", "true").lower() in {"true"}
@@ -352,20 +357,21 @@ def call_pubmed_search(*args, **kwargs):
     return call_pubmed_search_core(*args, **kwargs)
 
 
+
 # KeywordExtractorAgent: extract biomedical entities using BioBERT NER or LLM
 class KeywordExtractorAgent(ChatAgent):
     NER_MODEL_NAME = "dmis-lab/biobert-base-cased-v1.1"
     _tokenizer = AutoTokenizer.from_pretrained(NER_MODEL_NAME)
     _model     = AutoModelForTokenClassification.from_pretrained(NER_MODEL_NAME)
-    ner_pipeline = pipeline(
-        "ner",
+    ner_pipeline = pipeline(  # type: ignore
+        "ner", # type: ignore
         model=_model,
         tokenizer=_tokenizer,
         aggregation_strategy="simple"
     )
     def __init__(self):
         cfg = ChatAgentConfig(
-            llm=ensure_specific_llm_config(clean_llm_config(gpt4turbo_mini_config)),
+            llm=ensure_specific_llm_config(clean_llm_config(KEYWORD_CONFIG)),
             system_message=(
                 "KeywordExtractorAgent:\n"
                 "Task: From the input biomedical text, extract **only canonical biomedical entities**—"
@@ -398,7 +404,10 @@ class KeywordExtractorAgent(ChatAgent):
             return entities[:8]
         prompt = f"{self.config.system_message}\n\nText:\n{text}\n\nEntities:"
         resp = self.llm_response(prompt)
-        content = resp.content if hasattr(resp, "content") else str(resp)
+        if resp is not None and hasattr(resp, "content"):
+            content = resp.content
+        else:
+            content = str(resp)
         raw = [t.strip() for t in content.split(",") if t.strip()]
         filtered = [t for t in raw if not any(s in t.lower() for s in self.stop_words)]
         seen_f = set()
@@ -451,11 +460,10 @@ class KGAgent(ChatAgent):
         )
 
  # PlannerAgent: generate stepwise research workflow
-
 class PlannerAgent(ChatAgent):
     def __init__(self):
         cfg = ChatAgentConfig(
-            llm=ensure_specific_llm_config(clean_llm_config(gpt4turbo_mini_config)),
+            llm=ensure_specific_llm_config(clean_llm_config(PLANNER_CONFIG)),
             system_message=(
                 "PlannerAgent:\n"
                 "Task: Develop a clear, stepwise research workflow based on the provided background text."
@@ -474,7 +482,11 @@ class PlannerAgent(ChatAgent):
     def step(self, background: str) -> str:
         prompt = f"{self.config.system_message}\nBackground:\n{background}\nPlan:"
         resp = self.llm_response(prompt)
-        return resp.content if hasattr(resp, 'content') else str(resp)
+        if resp is not None and hasattr(resp, "content"):
+            content = resp.content
+        else:
+            content = str(resp)
+        return content
 
 # ScientistAgent: generate one concise, testable, and innovative biomedical hypothesis
 class ScientistAgent(ChatAgent):
@@ -507,7 +519,7 @@ class ScientistAgent(ChatAgent):
 
         cfg = ChatAgentConfig(
             llm=ensure_specific_llm_config(
-                clean_llm_config(gpt4turbo_mini_config_graph)
+                clean_llm_config(SCIENTIST_AGENT_CONFIG)
             ),
             system_message=system_message,
         )
@@ -522,36 +534,46 @@ class ScientistAgent(ChatAgent):
             "Hypotheses (one line):"
         )
         resp = self.llm_response(prompt)
-        return resp.content.strip()
+        if resp is not None and hasattr(resp, "content"):
+            content = resp.content
+        else:
+            content = str(resp)
+        return content
 
 # PubmedAgent: search PubMed for relevant articles
 class PubmedAgent(ChatAgent):
-    def __init__(self, min_results=1, max_results=4):
+    def __init__(self, min_results=1, max_results=4, start_date=None, end_date=None):
         cfg = ChatAgentConfig(
-            llm=ensure_specific_llm_config(clean_llm_config(gpt4o_mini_config_graph)),
+            llm=ensure_specific_llm_config(clean_llm_config(PUBMED_AGENT_CONFIG)),
             system_message="You are a PubMed search assistant."
         )
         cfg.name = "PubmedAgent"
         self.min_results = min_results
         self.max_results = max_results
+        self.start_date = start_date
+        self.end_date = end_date
         super().__init__(cfg)
-
     def step(self, keywords: List[str], hypothesis: Optional[str] = None, feedback: Optional[str] = None,
-             min_results=None, max_results=None, **kwargs) -> str:
+             min_results=None, max_results=None, start_date=None, end_date=None, **kwargs) -> str:
         min_results = min_results if min_results is not None else self.min_results
         max_results = max_results if max_results is not None else self.max_results
+        start_date = start_date if start_date is not None else self.start_date
+        end_date = end_date if end_date is not None else self.end_date
         res = call_pubmed_search(
             keywords=keywords,
             hypothesis=hypothesis,
             feedback=feedback,
             min_results=min_results,
-            max_results=max_results
+            max_results=max_results,
+            start_date=start_date,
+            end_date=end_date
         )
         articles = res["articles"]
         if not articles:
             return "[PubMed] No sufficient relevant articles found."
         out_blocks = [json.dumps(a, ensure_ascii=False) for a in articles]
         return "\n".join(out_blocks)
+
 
 # CriticAgent: evaluate hypothesis by 4 metrics, output scores and rationales
 class CriticAgent(ChatAgent):
@@ -573,7 +595,7 @@ class CriticAgent(ChatAgent):
             "At the end, on its own line, write “Overall Score: <value>/20”."
         )
         cfg = ChatAgentConfig(
-            llm=ensure_specific_llm_config(clean_llm_config(gpt4o_mini_config_graph)),
+            llm=ensure_specific_llm_config(clean_llm_config(CRITIC_AGENT_CONFIG)),
             system_message=system_message,
         )
         cfg.name = "CriticAgent"
@@ -588,11 +610,15 @@ class CriticAgent(ChatAgent):
             "Provide your critique, complete the table, and then write “Overall Score: <value>/20”."
         )
         resp = self.llm_response(prompt)
-        return resp.content if hasattr(resp, "content") else str(resp)
+        if resp is not None and hasattr(resp, "content"):
+            content = resp.content
+        else:
+            content = str(resp)
+        return content
 
 # RevisionAgent: suggest evidence source and KG settings for low metrics
 class RevisionAgent(ChatAgent):
-    def __init__(self, pubmed_min_results=2, pubmed_max_results=5):
+    def __init__(self, pubmed_min_results=2, pubmed_max_results=5, start_date=None, end_date=None):
         system_message = (
             "RevisionAgent:\n"
             "Task: You receive:\n"
@@ -608,14 +634,14 @@ class RevisionAgent(ChatAgent):
             "   - If all metrics are high (≥4), output both 'neo4j' and 'pubmed' to encourage further hypothesis enhancement.\n"
             "3. ALSO suggest how to adjust the next KG query:\n"
             "   - DEPTH_OVERRIDE: If relevant, increase max_depth by 1; otherwise keep the current value.\n"
-            "   - RELS_OVERRIDE: Pick the 2–8 most relevant relation types from the global DOMAIN_CONFIG across all domains. Choose types that best address the weaknesses identified (e.g., mechanism-related for novelty gaps, evidence-related for verifiability gaps).\n"
+            "   - RELS_OVERRIDE: Pick the 2–8 most relevant relation types from the global DOMAIN_SET across all domains. Choose types that best address the weaknesses identified (e.g., mechanism-related for novelty gaps, evidence-related for verifiability gaps).\n"
             "4. Return exactly three lines in this format:\n"
             "   ACTIONS:action1,action2\n"
             "   DEPTH_OVERRIDE:<integer>\n"
             "   RELS_OVERRIDE:rel1,rel2,...\n"
         )
         cfg = ChatAgentConfig(
-            llm=ensure_specific_llm_config(clean_llm_config(gpt4turbo_mini_config)),
+            llm=ensure_specific_llm_config(clean_llm_config(REVISION_AGENT_CONFIG)),
             system_message=system_message
         )
         cfg.name = "RevisionAgent"
@@ -632,7 +658,11 @@ class RevisionAgent(ChatAgent):
             "In one sentence, concisely describe what's missing or weak, and give a clear, actionable improvement suggestion."
         )
         resp = self.llm_response(prompt)
-        return resp.content.strip() if hasattr(resp, "content") else str(resp).strip()
+        if resp is not None and hasattr(resp, "content"):
+            content = resp.content
+        else:
+            content = str(resp)
+        return content
 
     def step(
         self,
@@ -641,7 +671,9 @@ class RevisionAgent(ChatAgent):
         domain: str,
         background: str,
         direct_edge_limit: int = 30,
-        node_limit: int = 30
+        node_limit: int = 30,
+        start_date: str = None,
+        end_date: str = None
     ) -> Tuple[
         List[str],
         List[Tuple[str, str]],
@@ -668,7 +700,7 @@ class RevisionAgent(ChatAgent):
             metric_texts = [critic_feedback.strip()]
             analysis_texts = ["There are no low scores, and it is recommended to improve the innovativeness and verifiability of the assumptions in a global manner."]
         all_rels = sorted({rel
-                           for cfg in DOMAIN_CONFIG.values()
+                           for cfg in DOMAIN_SET.values()
                            for rel in cfg.get("relation_types", [])})
         prompt = (
             f"{self.config.system_message}\n\n"
@@ -679,7 +711,11 @@ class RevisionAgent(ChatAgent):
             "Decision:"
         )
         resp = self.llm_response(prompt)
-        out = resp.content if hasattr(resp, "content") else str(resp)
+        if resp is not None and hasattr(resp, "content"):
+            content = resp.content
+        else:
+            content = str(resp)
+        out = content
         actions: List[str] = []
         depth_override: Optional[int] = None
         rels_override: Optional[List[str]] = None
@@ -727,6 +763,8 @@ class RevisionAgent(ChatAgent):
                 kg_dyn
             )
             info_bundle.append(("neo4j", kg_dyn))
+        start_date = start_date if start_date is not None else self.start_date
+        end_date = end_date if end_date is not None else self.end_date
         if "pubmed" in actions:
             res = call_pubmed_search(
                 keywords=kws,
@@ -735,6 +773,8 @@ class RevisionAgent(ChatAgent):
                 min_results=self.pubmed_min_results,
                 max_results=self.pubmed_max_results,
                 background=new_background,
+                start_date=start_date,
+                end_date=end_date,
             )
             write_agent_log(
                 "Re_PubmedAgent",
@@ -776,7 +816,7 @@ class RefineAgent(ChatAgent):
         )
 
         cfg = ChatAgentConfig(
-            llm=ensure_specific_llm_config(clean_llm_config(gpt4turbo_mini_config_graph)),
+            llm=ensure_specific_llm_config(clean_llm_config(REFINE_AGENT_CONFIG)),
             system_message=system_message
         )
         cfg.name = "RefineAgent"
@@ -799,7 +839,11 @@ class RefineAgent(ChatAgent):
             "Refinement:"
         )
         resp = self.llm_response(prompt)
-        return resp.content.strip()
+        if resp is not None and hasattr(resp, "content"):
+            content = resp.content
+        else:
+            content = str(resp)
+        return content
 
 # DecisionAgent: output hypotheses and scores
 class DecisionAgent:
@@ -825,7 +869,9 @@ def run_full_pipeline(
     node_limit: int = 30,
     pubmed_min_results: int = 1,
     pubmed_max_results: int = 4,
-    record_dir: str = 'logs'
+    record_dir: str = 'logs',
+    start_date: str = "2019/01/01",
+    end_date: str = "2025/12/31"
 ):
     import os, json
     RECORD_DIR = record_dir
@@ -844,9 +890,19 @@ def run_full_pipeline(
     bg_text = background
 
     kg_agent = KGAgent()
-    pubmed_agent = PubmedAgent(min_results=pubmed_min_results, max_results=pubmed_max_results)
+    pubmed_agent = PubmedAgent(
+    min_results=pubmed_min_results, 
+    max_results=pubmed_max_results,
+    start_date=start_date,
+    end_date=end_date
+    )
     critic = CriticAgent()
-    revision = RevisionAgent(pubmed_min_results=pubmed_min_results, pubmed_max_results=pubmed_max_results)
+    revision = RevisionAgent(
+    pubmed_min_results=pubmed_min_results, 
+    pubmed_max_results=pubmed_max_results,
+    start_date=start_date,
+    end_date=end_date
+    )
     refine_agent = RefineAgent()
 
     domain = DomainSelectorAgent().step(background)
@@ -926,6 +982,8 @@ def run_full_pipeline(
                 fb, curr_txt, domain, background,
                 direct_edge_limit=direct_edge_limit,
                 node_limit=node_limit,
+                start_date=start_date,
+                end_date=end_date
             )
             write_agent_log("RevisionAgent", {"feedback": fb, "hypothesis": curr_txt, "domain": domain, "background": background},
                 {"actions": actions, "info": info, "metrics_texts": metrics_texts})

@@ -4,24 +4,26 @@ import json
 from datetime import datetime
 from typing import List, Sequence
 import os
-
 from dotenv import load_dotenv
 load_dotenv()
 
-from .utils.log_utils import write_agent_log
-from .agents_evidence import (
+from utils.llm_config import BACKGROUND_SUMMARISER_CONFIG
+from utils.log_utils import write_agent_log
+from agents_evidence import (
     ChatAgent, ChatAgentConfig,
-    gpt4turbo_mini_config, ensure_specific_llm_config, clean_llm_config,
-    run_full_pipeline,                        # <-- 你已有的函数
-    DomainSelectorAgent, DiseaseExplorerAgent, ScientistAgent, KeywordExtractorAgent,
-    call_pubmed_search
+    ensure_specific_llm_config, clean_llm_config,
+    run_full_pipeline,                        
+    DomainSelectorAgent, DiseaseExplorerAgent, ScientistAgent,
+    call_pubmed_search,
+    KeywordExtractorAgent
 )
 
-# ----------------------------- LLM agent -------------------------------- #
+
+# LLM agent 
 class BackgroundSummariserAgent(ChatAgent):
     def __init__(self):
         cfg = ChatAgentConfig(
-            llm=ensure_specific_llm_config(clean_llm_config(gpt4turbo_mini_config)),
+            llm=ensure_specific_llm_config(clean_llm_config(BACKGROUND_SUMMARISER_CONFIG)),
             system_message=(
                 "BackgroundSummariserAgent:\n"
                 "Task: Given PubMed article metadata about a disease and core genes, write a concise "
@@ -47,7 +49,16 @@ class BackgroundSummariserAgent(ChatAgent):
             "Produce concise background (<=150 words)"
         )
         resp = self.llm_response(prompt)
-        background = resp.content.strip() if hasattr(resp, "content") else str(resp).strip()
+
+        if resp is None:
+            background = ""
+        elif hasattr(resp, "content"):
+            background = resp.content.strip()
+        elif isinstance(resp, str):
+            background = resp.strip()
+        else:
+            background = str(resp).strip()
+
         write_agent_log(
             "BackgroundSummariserAgent",
             {"disease": disease, "genes": genes, "articles": article_blocks},
@@ -56,12 +67,13 @@ class BackgroundSummariserAgent(ChatAgent):
         return background
 
 
-# -------------------------- Helper functions ---------------------------- #
+# Helper functions
 def build_background_summary(
     disease: str,
     core_genes: Sequence[str],
     related_articles: list | None = None,
-    start_year: int = 2019,
+    start_date: str = "2019/01/01",
+    end_date: str = "2025/12/31",
     retmax: int = 10,
 ) -> str:
     if related_articles is None:
@@ -71,15 +83,17 @@ def build_background_summary(
     timestamp = datetime.utcnow().strftime("%Y-%m-%d")
     header = (
         f"### Auto-generated background for {disease} (genes: {', '.join(core_genes)}), "
-        f"PubMed cut-off ≥{start_year} (generated {timestamp} UTC)\n\n"
+        f"PubMed window: {start_date} - {end_date} (generated {timestamp} UTC)\n\n"
     )
     return header + background
+
 
 
 def run_background_only(
     disease: str,
     core_genes: Sequence[str],
-    start_year: int = 2019,
+    start_date: str = "2019/01/01",
+    end_date: str = "2025/12/31",
     min_results: int = 3,
     max_results: int = 10,
 ):
@@ -88,6 +102,8 @@ def run_background_only(
         keywords=[disease] + list(core_genes),
         min_results=min_results,
         max_results=max_results,
+        start_date=start_date,
+        end_date=end_date, 
     )
     articles = articles_result["articles"]
 
@@ -95,7 +111,8 @@ def run_background_only(
         disease=disease,
         core_genes=core_genes,
         related_articles=articles,
-        start_year=start_year,
+        start_date=start_date,
+        end_date=end_date,
         retmax=max_results,
     )
 
@@ -117,7 +134,8 @@ def run_background_only(
 def run_biodisco_full(
     disease: str,
     core_genes: Sequence[str],
-    start_year: int = 2019,
+    start_date: str = "2019/01/01",
+    end_date: str = "2025/12/31",
     min_results: int = 3,
     max_results: int = 10,
     node_limit: int = 50,
@@ -133,6 +151,8 @@ def run_biodisco_full(
         keywords=[disease] + list(core_genes),
         min_results=min_results,
         max_results=max_results,
+        start_date=start_date,
+        end_date=end_date, 
     )
     articles = art_res["articles"]
 
@@ -140,15 +160,21 @@ def run_biodisco_full(
         disease=disease,
         core_genes=core_genes,
         related_articles=articles,
-        start_year=start_year,
+        start_date=start_date,
+        end_date=end_date, 
         retmax=max_results
     )
 
-    # 传递参数到 run_full_pipeline
     all_hypotheses_info = run_full_pipeline(
         background,
         n_iterations=n_iterations,
-        max_lit_per_hypo=max_articles_per_round
+        max_lit_per_hypo=max_articles_per_round,
+        direct_edge_limit=direct_edge_limit,
+        node_limit=node_limit,
+        pubmed_min_results=min_results,    
+        pubmed_max_results=max_results,    
+        start_date=start_date,
+        end_date=end_date
     )
 
     return {
@@ -212,53 +238,39 @@ def auto_structure_item(item):
             disease = kw
         else:
             core_genes.append(kw)
-
     if not core_genes and disease:
         core_genes = [disease]
     return {"disease": disease, "core_genes": core_genes}
 
 def generate(topic: str, **kwargs) -> str:
-    """
-    Generate a structured item from a topic string.
-    
-    Args:
-        topic (str): Input topic string.
-        
-    Returns:
-        Dict: Structured item with disease and core genes.
-    """
+
     params = dict(
-        start_year=2019,
+        start_date="2019/01/01",
+        end_date="2025/12/31",
         min_results=3,
         max_results=10,
+        node_limit=50,
+        direct_edge_limit=30,
+        max_paths=0,
         n_iterations=3,
         max_articles_per_round=10,
     )
 
     # Set environment variables to override global defaults
     if 'disable_pubmed' in kwargs:
-        if kwargs['disable_pubmed']:
-            os.environ['DISABLE_PUBMED'] = 'True'
-        else:
-            os.environ['DISABLE_PUBMED'] = 'False'
+        os.environ['DISABLE_PUBMED'] = 'True' if kwargs['disable_pubmed'] else 'False'
 
     if 'disable_kg' in kwargs:
-        if kwargs['disable_kg']:
-            os.environ['DISABLE_KG'] = 'True'
-        else:
-            os.environ['DISABLE_KG'] = 'False'
-    
-    # Update params with any additional kwargs
+        os.environ['DISABLE_KG'] = 'True' if kwargs['disable_kg'] else 'False'
+
     for key in kwargs:
-        if key in params:
-            params[key] = kwargs[key]
-        elif key not in ['disable_pubmed', 'disable_kg']:
-            print(f"Warning: Unrecognized parameter '{key}' in kwargs. It will be ignored.")
+        if key not in ['disable_pubmed', 'disable_kg']:
+            params[key] = kwargs[key]  
 
     item = auto_structure_item(topic)
-    disease = item.get("disease", "")
-    core_genes = item.get("core_genes", [])
-    
-    res = run_biodisco_full(disease, core_genes, **params)
+    disease = item.get("disease", "") # type: ignore
+    core_genes = item.get("core_genes", []) # type: ignore
+
+    res = run_biodisco_full(disease, core_genes, **params)# type: ignore
 
     return res['all_hypotheses'][-1]['hypothesis']

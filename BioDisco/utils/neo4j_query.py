@@ -3,7 +3,7 @@ import pickle
 from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
-# import torch
+import torch
 import json
 import faiss
 from neo4j import GraphDatabase
@@ -13,10 +13,9 @@ from langroid.language_models.base import LLMConfig
 from langroid.language_models.openai_gpt import OpenAIGPTConfig
 import openai
 
-from .llm_config import (
-    gpt4turbo_mini_config,
-    gpt4turbo_mini_config_graph,
-    gpt4o_mini_config_graph
+
+from utils.llm_config import (
+    KG_AGENT_CONFIG
 )
 
 def clean_llm_config(llm_config):
@@ -101,6 +100,7 @@ def embed_map_keywords(raw_kws: List[str], top_k: int = 15) -> List[str]:
     # Map keywords to closest KG node names using embeddings
     LOG(f"Embedding keywords: {raw_kws}")
     init_embeddings()
+    assert _ST_MODEL is not None, "_ST_MODEL not initialized!"
     kw_embs = []
     for kw in raw_kws:
         if kw not in _KW_EMB_CACHE:
@@ -110,10 +110,11 @@ def embed_map_keywords(raw_kws: List[str], top_k: int = 15) -> List[str]:
             LOG(f"Encoded and cached keyword: {kw}")
         kw_embs.append(_KW_EMB_CACHE[kw])
     kw_np = np.stack(kw_embs).astype("float32")
+    assert _FAISS_INDEX is not None
     D, I = _FAISS_INDEX.search(kw_np, top_k)
     mapped = []
     for i, idxs in enumerate(I):
-        hits = [_NODE_NAMES[idx] for idx in idxs]
+        hits = [_NODE_NAMES[idx] for idx in idxs] #type:ignore
         LOG(f"Candidates for {raw_kws[i]}: {hits}")
         mapped.extend(hits)
     mapped_unique = list(dict.fromkeys(mapped))
@@ -124,7 +125,7 @@ class FilterKeywordsAgent(ChatAgent):
     # Select most relevant KG node names based on background
     def __init__(self):
         cfg = ChatAgentConfig(
-            llm=ensure_specific_llm_config(clean_llm_config(gpt4turbo_mini_config)),
+            llm=ensure_specific_llm_config(clean_llm_config(KG_AGENT_CONFIG)),
             system_message=(
                 "You are a biomedical knowledge assistant.\n"
                 "Task: Given a BACKGROUND text and a list of CANDIDATE knowledge-graph node ,\n"
@@ -146,12 +147,21 @@ class FilterKeywordsAgent(ChatAgent):
             "SELECTED:"
         )
         resp = self.llm_response(prompt)
-        return json.loads(resp.content)
+        if resp is not None and hasattr(resp, "content"):
+            content = resp.content
+        else:
+            content = str(resp)
+        try:
+            result = json.loads(content)
+            if isinstance(result, list):
+                return result
+            else:
+                return []
+        except Exception:
+            return []
 
-############################################################
 # Domain configuration for KG querying
-############################################################
-DOMAIN_CONFIG = {
+DOMAIN_SET = {
     "molecular": {
         "node_types": ["gene/protein","molecular_function","biological_process","cellular_component"],
         "relation_types": [
@@ -199,9 +209,7 @@ DOMAIN_CONFIG = {
     }
 }
 
-############################################################
 # Keyword cleaning and splitting
-############################################################
 def clean_and_split_keywords(raw_keywords: List[str]) -> List[str]:
     # Clean and split keywords into atomic components
     LOG(f"Original keywords: {raw_keywords}")
@@ -236,9 +244,7 @@ def clean_and_split_keywords(raw_keywords: List[str]) -> List[str]:
     LOG(f"Cleaned keywords: {final}")
     return final
 
-############################################################
 # Helper functions
-############################################################
 def simulate_embedding(text: str) -> List[float]:
     # Simulate a vector embedding for testing
     vec=[0.0]*3
@@ -271,9 +277,7 @@ def build_json_output(nodes, direct_edges, multi_edges, query_keywords, domain):
     return {"core_keywords":query_keywords,"domain":domain,"nodes":json_nodes,
             "direct_edges":json_direct,"multihop_paths":multi_edges}
 
-############################################################
 # Neo4jGraph class for KG access
-############################################################
 class Neo4jGraph:
     def __init__(self, uri:str, user:str, password:str):
         # Initialize Neo4j driver
@@ -294,7 +298,7 @@ class Neo4jGraph:
                         WHERE toLower(n.name) CONTAINS toLower($kw)
                            OR toLower(m.name) CONTAINS toLower($kw)
                         RETURN n,r,m LIMIT $lim"""
-                for rec in session.run(q, kw=keyword, lim=batch):
+                for rec in session.run(q, kw=keyword, lim=batch):# type: ignore
                     n,m,rel=rec["n"],rec["m"],rec["r"]
                     for v in (n,m):
                         vid=v.id
@@ -311,7 +315,7 @@ class Neo4jGraph:
             q=f"""MATCH path=(n)-[*1..{depth}]-(m)
                   WHERE ANY(kw IN $kws WHERE ANY(x IN nodes(path) WHERE toLower(x.name) CONTAINS toLower(kw)))
                   RETURN path LIMIT $lim"""
-            for rec in session.run(q,kws=keywords,lim=batch):
+            for rec in session.run(q,kws=keywords,lim=batch):# type: ignore
                 p=rec["path"]; hops=len(p.relationships)
                 nodeset=sorted({nd.get("name","UNK") for nd in p.nodes})
                 pi=generate_path_info_multi(keywords,hops,nodeset)
@@ -348,7 +352,7 @@ class Neo4jGraph:
         domains = [d.strip() for d in (domain or "").split(",") if d.strip()]
         merged = {"node_types": set(), "relation_types": set(), "max_depth": 1, "batch_size": 10}
         for d in domains:
-            cfg = DOMAIN_CONFIG.get(d, {})
+            cfg = DOMAIN_SET.get(d, {})
             merged["node_types"] |= set(cfg.get("node_types", []))
             merged["relation_types"] |= set(cfg.get("relation_types", []))
             merged["max_depth"] = max(merged["max_depth"], cfg.get("max_depth", 1))
@@ -412,7 +416,7 @@ class Neo4jGraph:
         )
         s = json.dumps(candidate, ensure_ascii=False)
         if len(s) > _MAX_JSON_CHAR and (relationship_types_override or max_depth_override):
-            defs = DOMAIN_CONFIG.get(domains[0], {})
+            defs = DOMAIN_SET.get(domains[0], {})
             rd, dp = defs.get("relation_types", []), defs.get("max_depth", 1)
             nd2, ed2 = {}, []
             for kw in valid:

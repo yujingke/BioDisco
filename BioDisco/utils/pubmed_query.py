@@ -2,30 +2,64 @@ import os
 import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import json
 import time
 import re
 from langroid.agent.chat_agent import ChatAgent, ChatAgentConfig
 from langroid.language_models.base import LLMConfig
 from langroid.language_models.openai_gpt import OpenAIGPTConfig
-from .llm_config import gpt4o_mini_config_graph
+from utils.llm_config import PUBMED_AGENT_CONFIG
 
+def parse_pubdate(journal_issue):
+    year = journal_issue.findtext('Year')
+    month = journal_issue.findtext('Month')
+    day = journal_issue.findtext('Day')
+    month_map = {'Jan':'01','Feb':'02','Mar':'03','Apr':'04','May':'05','Jun':'06',
+                 'Jul':'07','Aug':'08','Sep':'09','Oct':'10','Nov':'11','Dec':'12'}
+    if month and month in month_map:
+        month = month_map[month]
+    elif month and month.isdigit():
+        month = month.zfill(2)
+    else:
+        month = '01'
+    if not day or not day.isdigit():
+        day = '01'
+    if year:
+        return f"{year}-{month}-{day}"
+    return "Unknown"
+
+def filter_articles_by_date(articles, start_date, end_date):
+    from datetime import datetime
+    try:
+        start = datetime.strptime(start_date, "%Y/%m/%d")
+        end = datetime.strptime(end_date, "%Y/%m/%d")
+    except Exception:
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+    def in_range(a):
+        pub_date = a.get('pub_date', '')
+        if len(pub_date) == 4:
+            pub_date = f"{pub_date}-01-01"
+        for fmt in ("%Y-%m-%d", "%Y/%m/%d"):
+            try:
+                d = datetime.strptime(pub_date[:10], fmt)
+                return start <= d <= end
+            except Exception:
+                continue
+        return False
+    return [a for a in articles if in_range(a)]
 
 def extract_json_from_response(text):
-    """从LLM输出中自动提取纯JSON对象"""
     if text is None:
         raise ValueError("No LLM output to extract JSON from.")
     text = text.strip()
     if text.startswith("```"):
-        # 去掉markdown代码块包裹
         text = re.sub(r'^```[a-zA-Z]*\n?', '', text)
         text = re.sub(r'\n?```$', '', text)
-    # 查找首个{...}
     matches = re.findall(r'\{[\s\S]*\}', text)
     if matches:
         return json.loads(matches[0])
-    # fallback: 尝试直接parse
     return json.loads(text)
 
 def clean_llm_config(llm_config):
@@ -53,7 +87,7 @@ class KeywordQueryAgent(ChatAgent):
     # PubMed keyword query strategy agent
     def __init__(self):
         cfg = ChatAgentConfig(
-            llm=ensure_specific_llm_config(clean_llm_config(gpt4o_mini_config_graph)),
+            llm=ensure_specific_llm_config(clean_llm_config(PUBMED_AGENT_CONFIG)),
             system_message=(
                 "You are an expert biomedical PubMed search strategist.\n"
                 "Task: Given a list of biomedical keywords, organize them into synonym groups (OR within each),\n"
@@ -79,8 +113,6 @@ class KeywordQueryAgent(ChatAgent):
         # Get query strategy from LLM
         prompt = f"{self.config.system_message}\n\nKEYWORDS:\n{keywords}\n\nQUERY_STRATEGY:"
         resp = self.llm_response(prompt)
-        # print("[DEBUG] LLM output:", resp)
-        # print("[DEBUG] LLM output content:", getattr(resp, "content", None))
         if not resp or not getattr(resp, "content", None):
             raise RuntimeError("LLM did not return a response.")
         strat = extract_json_from_response(getattr(resp, "content", ""))
@@ -93,7 +125,7 @@ class HypothesisQueryAgent(ChatAgent):
     # PubMed query agent for hypothesis with feedback
     def __init__(self):
         cfg = ChatAgentConfig(
-            llm=ensure_specific_llm_config(clean_llm_config(gpt4o_mini_config_graph)),
+            llm=ensure_specific_llm_config(clean_llm_config(PUBMED_AGENT_CONFIG)),
             system_message=(
                 "You are an expert biomedical PubMed search strategist.\n"
                 "Task: Given a research hypothesis, its low-score feedback, and related keywords,\n"
@@ -148,7 +180,7 @@ def build_pubmed_query(
     group_logic: str = "AND",
     field_pref: str = "MeSH/TIAB",
     start_date: str = "2018/01/01",
-    end_date: str = None
+    end_date: Optional[str] = None
 ) -> str:
     # Build PubMed query string from groups and logic
     if end_date is None:
@@ -178,19 +210,26 @@ def build_pubmed_query(
     query += ' AND "journal article"[pt]'
     return query
 
-def pubmed_search(query: str, retmax: int = 20, api_key: str = None, sort: str = "relevance"):
+def pubmed_search(query: str, retmax: int = 20, api_key: Optional[str] = None, sort: str = "relevance"):
     # PubMed search and fetch results using NCBI API
+    import os
     search_url = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi'
     params = {'db':'pubmed','term':query,'retmax':retmax,'retmode':'json','sort':sort}
     key = api_key or os.getenv("PUBMED_API_KEY")
     if key: params['api_key'] = key
     resp = _safe_get(search_url, params)
-    ids = resp.json().get('esearchresult',{}).get('idlist',[])
+    if resp is None:
+        return []
+    ids = resp.json().get('esearchresult', {}).get('idlist', [])
     if not ids: return []
     efetch_url = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi'
     efparams = {'db':'pubmed','id':','.join(ids),'retmode':'xml'}
     if key: efparams['api_key'] = key
-    root = ET.fromstring(_safe_get(efetch_url, efparams).content)
+    efetch_resp = _safe_get(efetch_url, efparams)
+    if efetch_resp is None:
+        return []
+    content = efetch_resp.content
+    root = ET.fromstring(content)
     arts = []
     for art in root.findall('PubmedArticle'):
         med = art.find('MedlineCitation')
@@ -198,17 +237,27 @@ def pubmed_search(query: str, retmax: int = 20, api_key: str = None, sort: str =
         title = art_el.findtext('ArticleTitle') or ""
         abs_el = art_el.find('Abstract')
         abstract = " ".join(e.text for e in abs_el.findall('AbstractText') if e.text) if abs_el is not None else ""
-        pub_date = med.findtext('DateCompleted/Year') or art_el.findtext('Journal/JournalIssue/PubDate/Year',"Unknown")
+        pub_date = "Unknown"
+        pubdate_el = art_el.find('Journal/JournalIssue/PubDate')
+        if pubdate_el is not None:
+            pub_date = parse_pubdate(pubdate_el)
+        if pub_date == "Unknown":
+            year = med.findtext('DateCompleted/Year')
+            if year:
+                pub_date = f"{year}-01-01"
         pid = med.findtext('PMID') or "Unknown"
         arts.append({'id':pid,'title':title,'abstract':abstract,'pub_date':pub_date,'url':f"https://pubmed.ncbi.nlm.nih.gov/{pid}/"})
+
     return arts
+
+
 
 def adaptive_pubmed_search(
     strategy: Dict[str,Any],
     field_pref: str = "MeSH/TIAB",
     start_date: str = "2018/01/01",
-    end_date: str = None,
-    api_key: str = None,
+    end_date: Optional[str] = None,
+    api_key: Optional[str] = None,
     min_results: int = 3,
     max_results: int = 10,
     retmax_per_query: int = 20
@@ -260,6 +309,7 @@ def adaptive_pubmed_search(
             if h['id'] not in seen_ids:
                 final_articles.append(h)
                 seen_ids.add(h['id'])
+    final_articles = filter_articles_by_date(final_articles, start_date, end_date)
     if len(final_articles) < min_results:
         status = "Too few articles after all attempts"
     else:
